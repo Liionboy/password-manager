@@ -187,15 +187,31 @@ router.post('/import', (req, res) => {
       return res.status(400).json({ error: 'No passwords provided' });
     }
 
+    let folderMap = {};
+    
+    if (passwords.folders && Array.isArray(passwords.folders)) {
+      passwords.folders.forEach(folder => {
+        if (folder.id && folder.name) {
+          folderMap[folder.id] = folder.name;
+        }
+      });
+    }
+
     if (passwords.items && Array.isArray(passwords.items)) {
-      passwords = passwords.items.map(item => ({
-        title: item.name,
-        username: item.login?.username || null,
-        password: item.login?.password || '',
-        url: item.login?.uris?.[0]?.uri || null,
-        notes: item.notes || null,
-        category: item.folderId || null
-      }));
+      passwords = passwords.items.map(item => {
+        let categoryName = null;
+        if (item.folderId && folderMap[item.folderId]) {
+          categoryName = folderMap[item.folderId];
+        }
+        return {
+          title: item.name,
+          username: item.login?.username || null,
+          password: item.login?.password || '',
+          url: item.login?.uris?.[0]?.uri || null,
+          notes: item.notes || null,
+          category: categoryName
+        };
+      });
     } else if (!Array.isArray(passwords)) {
       return res.status(400).json({ error: 'Passwords must be an array' });
     }
@@ -205,15 +221,6 @@ router.post('/import', (req, res) => {
     existingCategories.forEach(c => {
       categoryMap[c.name.toLowerCase()] = c.id;
     });
-
-    if (passwords.folders && Array.isArray(passwords.folders)) {
-      passwords.folders.forEach(folder => {
-        if (folder.name && !categoryMap[folder.name.toLowerCase()]) {
-          const result = db.prepare('INSERT INTO categories (user_id, name) VALUES (?, ?)').run(userId, folder.name);
-          categoryMap[folder.name.toLowerCase()] = result.lastInsertRowid;
-        }
-      });
-    }
 
     const insertPassword = db.prepare(`
       INSERT INTO passwords (user_id, title, username, encrypted_password, url, category_id, notes)
