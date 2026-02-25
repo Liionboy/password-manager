@@ -71,11 +71,13 @@ db.exec(`
     expiry_year TEXT,
     cvv TEXT,
     brand TEXT,
+    folder_id INTEGER,
     category_id INTEGER,
     notes TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL,
     FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
   );
 
@@ -93,6 +95,26 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 `);
+
+db.exec(`
+  CREATE TABLE IF NOT EXISTS folders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    parent_id INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (parent_id) REFERENCES folders(id) ON DELETE CASCADE
+  );
+`);
+
+try {
+  db.exec('ALTER TABLE passwords ADD COLUMN folder_id INTEGER REFERENCES folders(id) ON DELETE SET NULL');
+} catch (e) {}
+
+try {
+  db.exec('ALTER TABLE cards ADD COLUMN folder_id INTEGER REFERENCES folders(id) ON DELETE SET NULL');
+} catch (e) {}
 
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
