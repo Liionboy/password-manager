@@ -86,11 +86,11 @@ button.danger:hover {
 }
 
 button.success {
-  background-color: #28a745;
+  background-color: #0066cc;
 }
 
 button.success:hover {
-  background-color: #218838;
+  background-color: #0052a3;
 }
 
 .error {
@@ -101,6 +101,33 @@ button.success:hover {
 .success {
   color: #28a745;
   margin-bottom: 15px;
+}
+
+.tabs {
+  display: flex;
+  gap: 10px;
+  margin-bottom: 20px;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.tabs .tab {
+  padding: 10px 20px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: #666;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+}
+
+.tabs .tab:hover {
+  color: #333;
+}
+
+.tabs .tab.active {
+  color: #0066cc;
+  border-bottom-color: #0066cc;
 }
 
 .header {

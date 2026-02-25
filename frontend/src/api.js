@@ -39,4 +39,11 @@ export const categories = {
   delete: (id) => api.delete(`/passwords/categories/${id}`)
 };
 
+export const cards = {
+  getAll: (search, categoryId) => api.get('/cards', { params: { search, category_id: categoryId } }),
+  create: (data) => api.post('/cards', data),
+  update: (id, data) => api.put(`/cards/${id}`, data),
+  delete: (id) => api.delete(`/cards/${id}`)
+};
+
 export default api;

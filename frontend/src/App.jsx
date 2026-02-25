@@ -4,6 +4,7 @@ import Login from './pages/Login';
 import Register from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import PasswordForm from './pages/PasswordForm';
+import CardForm from './pages/CardForm';
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
@@ -24,6 +25,8 @@ function App() {
         <Route path="/" element={token ? <Dashboard token={token} setToken={setToken} /> : <Navigate to="/login" />} />
         <Route path="/add" element={token ? <PasswordForm token={token} /> : <Navigate to="/login" />} />
         <Route path="/edit/:id" element={token ? <PasswordForm token={token} /> : <Navigate to="/login" />} />
+        <Route path="/add-card" element={token ? <CardForm token={token} /> : <Navigate to="/login" />} />
+        <Route path="/edit-card/:id" element={token ? <CardForm token={token} /> : <Navigate to="/login" />} />
       </Routes>
     </BrowserRouter>
   );
