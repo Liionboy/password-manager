@@ -181,9 +181,22 @@ router.post('/import', (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;
-    const { passwords } = req.body;
+    let { passwords } = req.body;
 
-    if (!Array.isArray(passwords)) {
+    if (!passwords) {
+      return res.status(400).json({ error: 'No passwords provided' });
+    }
+
+    if (passwords.items && Array.isArray(passwords.items)) {
+      passwords = passwords.items.map(item => ({
+        title: item.name,
+        username: item.login?.username || null,
+        password: item.login?.password || '',
+        url: item.login?.uris?.[0]?.uri || null,
+        notes: item.notes || null,
+        category: item.folderId || null
+      }));
+    } else if (!Array.isArray(passwords)) {
       return res.status(400).json({ error: 'Passwords must be an array' });
     }
 
@@ -192,6 +205,15 @@ router.post('/import', (req, res) => {
     existingCategories.forEach(c => {
       categoryMap[c.name.toLowerCase()] = c.id;
     });
+
+    if (passwords.folders && Array.isArray(passwords.folders)) {
+      passwords.folders.forEach(folder => {
+        if (folder.name && !categoryMap[folder.name.toLowerCase()]) {
+          const result = db.prepare('INSERT INTO categories (user_id, name) VALUES (?, ?)').run(userId, folder.name);
+          categoryMap[folder.name.toLowerCase()] = result.lastInsertRowid;
+        }
+      });
+    }
 
     const insertPassword = db.prepare(`
       INSERT INTO passwords (user_id, title, username, encrypted_password, url, category_id, notes)
@@ -207,12 +229,12 @@ router.post('/import', (req, res) => {
     passwords.forEach(p => {
       let categoryId = null;
       
-      if (p.category) {
+      if (p.category && typeof p.category === 'string') {
         const catName = p.category.toLowerCase();
         if (categoryMap[catName]) {
           categoryId = categoryMap[catName];
-        } else {
-          const result = insertCategory.run(userId, p.category);
+        } else if (p.category) {
+          const result = db.prepare('INSERT INTO categories (user_id, name) VALUES (?, ?)').run(userId, p.category);
           categoryId = result.lastInsertRowid;
           categoryMap[catName] = categoryId;
         }
