@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { passwords, categories } from '../api';
+import { passwords, categories, folders as foldersApi } from '../api';
 
 function PasswordForm({ token }) {
   const { id } = useParams();
@@ -12,10 +12,12 @@ function PasswordForm({ token }) {
     username: '',
     password: '',
     url: '',
+    folder_id: '',
     category_id: '',
     notes: ''
   });
   const [categoryList, setCategoryList] = useState([]);
+  const [folderList, setFolderList] = useState([]);
   const [showPassword, setShowPassword] = useState(false);
   const [genOptions, setGenOptions] = useState({
     length: 16,
@@ -29,6 +31,7 @@ function PasswordForm({ token }) {
 
   useEffect(() => {
     loadCategories();
+    loadFolders();
     if (isEdit) {
       loadPassword();
     }
@@ -43,6 +46,15 @@ function PasswordForm({ token }) {
     }
   };
 
+  const loadFolders = async () => {
+    try {
+      const response = await foldersApi.getAll();
+      setFolderList(response.data);
+    } catch (err) {
+      console.error('Error loading folders:', err);
+    }
+  };
+
   const loadPassword = async () => {
     try {
       const response = await passwords.getAll();
@@ -53,6 +65,7 @@ function PasswordForm({ token }) {
           username: pwd.username || '',
           password: pwd.password || '',
           url: pwd.url || '',
+          folder_id: pwd.folder_id || '',
           category_id: pwd.category_id || '',
           notes: pwd.notes || ''
         });
@@ -78,6 +91,7 @@ function PasswordForm({ token }) {
     try {
       const data = {
         ...formData,
+        folder_id: formData.folder_id || null,
         category_id: formData.category_id || null
       };
 
@@ -220,6 +234,21 @@ function PasswordForm({ token }) {
               onChange={handleChange}
               placeholder="https://example.com"
             />
+          </div>
+
+          <div className="form-group">
+            <label>Folder</label>
+            <select
+              name="folder_id"
+              value={formData.folder_id}
+              onChange={handleChange}
+              style={{ width: '100%' }}
+            >
+              <option value="">No Folder</option>
+              {folderList.map(f => (
+                <option key={f.id} value={f.id}>{f.name}</option>
+              ))}
+            </select>
           </div>
 
           <div className="form-group">

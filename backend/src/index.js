@@ -7,6 +7,7 @@ const authRoutes = require('./routes/auth');
 const passwordRoutes = require('./routes/passwords');
 const cardRoutes = require('./routes/cards');
 const settingsRoutes = require('./routes/settings');
+const folderRoutes = require('./routes/folders');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -33,6 +34,16 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 
+  CREATE TABLE IF NOT EXISTS folders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    parent_id INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (parent_id) REFERENCES folders(id) ON DELETE CASCADE
+  );
+
   CREATE TABLE IF NOT EXISTS passwords (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
@@ -40,11 +51,13 @@ db.exec(`
     username TEXT,
     encrypted_password TEXT NOT NULL,
     url TEXT,
+    folder_id INTEGER,
     category_id INTEGER,
     notes TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL,
     FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
   );
 
@@ -93,6 +106,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/passwords', passwordRoutes);
 app.use('/api/cards', cardRoutes);
 app.use('/api/settings', settingsRoutes);
+app.use('/api/folders', folderRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });

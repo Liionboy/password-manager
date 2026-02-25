@@ -1,28 +1,34 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { passwords, categories, cards } from '../api';
+import { passwords, categories, cards, folders as foldersApi } from '../api';
 
 function Dashboard({ token, setToken }) {
   const [activeTab, setActiveTab] = useState('passwords');
   const [passwordList, setPasswordList] = useState([]);
   const [cardList, setCardList] = useState([]);
   const [categoryList, setCategoryList] = useState([]);
+  const [folderList, setFolderList] = useState([]);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedFolder, setSelectedFolder] = useState('');
   const [showExportModal, setShowExportModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [showFolderModal, setShowFolderModal] = useState(false);
+  const [newFolder, setNewFolder] = useState({ name: '', parent_id: '' });
   const [importData, setImportData] = useState('');
+  const [expandedFolders, setExpandedFolders] = useState({});
   const navigate = useNavigate();
 
   useEffect(() => {
     loadPasswords();
     loadCards();
     loadCategories();
-  }, [search, selectedCategory, activeTab]);
+    loadFolders();
+  }, [search, selectedCategory, selectedFolder, activeTab]);
 
   const loadPasswords = async () => {
     try {
-      const response = await passwords.getAll(search, selectedCategory || null);
+      const response = await passwords.getAll(search, selectedCategory || null, selectedFolder || null);
       setPasswordList(response.data);
     } catch (err) {
       console.error('Error loading passwords:', err);
@@ -45,6 +51,81 @@ function Dashboard({ token, setToken }) {
     } catch (err) {
       console.error('Error loading categories:', err);
     }
+  };
+
+  const loadFolders = async () => {
+    try {
+      const response = await foldersApi.getAll();
+      setFolderList(response.data);
+    } catch (err) {
+      console.error('Error loading folders:', err);
+    }
+  };
+
+  const handleCreateFolder = async () => {
+    if (!newFolder.name.trim()) return;
+    try {
+      await foldersApi.create({
+        name: newFolder.name,
+        parent_id: newFolder.parent_id || null
+      });
+      setNewFolder({ name: '', parent_id: '' });
+      setShowFolderModal(false);
+      loadFolders();
+    } catch (err) {
+      alert('Error creating folder: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
+  const handleDeleteFolder = async (id) => {
+    if (!window.confirm('Delete this folder? Items inside will be moved to root.')) return;
+    try {
+      await foldersApi.delete(id);
+      if (selectedFolder === id) setSelectedFolder('');
+      loadFolders();
+      loadPasswords();
+    } catch (err) {
+      alert('Error deleting folder: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
+  const toggleFolder = (id) => {
+    setExpandedFolders(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  const renderFolderTree = (items, level = 0) => {
+    return items.map(folder => (
+      <div key={folder.id} style={{ paddingLeft: level * 15 }}>
+        <div style={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          padding: '8px',
+          cursor: 'pointer',
+          background: selectedFolder === folder.id ? '#e3f2fd' : 'transparent',
+          borderRadius: '4px',
+          gap: '5px'
+        }}>
+          {folder.children && folder.children.length > 0 && (
+            <span onClick={() => toggleFolder(folder.id)} style={{ cursor: 'pointer', width: '20px' }}>
+              {expandedFolders[folder.id] ? '▼' : '▶'}
+            </span>
+          )}
+          {!folder.children?.length && <span style={{ width: '20px' }}></span>}
+          <span onClick={() => setSelectedFolder(folder.id)} style={{ flex: 1 }}>
+            📁 {folder.name}
+          </span>
+          <button 
+            onClick={() => handleDeleteFolder(folder.id)} 
+            style={{ padding: '2px 6px', fontSize: '10px', background: '#dc3545', color: 'white', border: 'none', borderRadius: '3px' }}
+          >
+            ✕
+          </button>
+        </div>
+        {expandedFolders[folder.id] && folder.children?.length > 0 && (
+          renderFolderTree(folder.children, level + 1)
+        )}
+      </div>
+    ));
   };
 
   const handleDeletePassword = async (id) => {
@@ -121,6 +202,7 @@ function Dashboard({ token, setToken }) {
       setShowImportModal(false);
       setImportData('');
       loadPasswords();
+      loadFolders();
       alert('Import successful!');
     } catch (err) {
       alert('Error importing: ' + (err.response?.data?.error || err.message));
@@ -161,135 +243,202 @@ function Dashboard({ token, setToken }) {
         </div>
       </div>
 
-      <div className="container">
-        <div className="tabs">
-          <button 
-            className={activeTab === 'passwords' ? 'tab active' : 'tab'} 
-            onClick={() => setActiveTab('passwords')}
-          >
-            Passwords
-          </button>
-          <button 
-            className={activeTab === 'cards' ? 'tab active' : 'tab'} 
-            onClick={() => setActiveTab('cards')}
-          >
-            Cards
-          </button>
-        </div>
-
-        <div className="actions-bar">
-          <div>
-            {activeTab === 'passwords' ? (
-              <Link to="/add">
-                <button className="success">+ Add Password</button>
-              </Link>
-            ) : (
-              <Link to="/add-card">
-                <button className="success">+ Add Card</button>
-              </Link>
-            )}
-            {activeTab === 'passwords' && (
-              <>
-                <button onClick={() => setShowImportModal(true)}>Import</button>
-                <button onClick={() => setShowExportModal(true)}>Export</button>
-              </>
-            )}
+      <div style={{ display: 'flex', minHeight: 'calc(100vh - 80px)' }}>
+        <div style={{ 
+          width: '250px', 
+          background: '#f8f9fa', 
+          padding: '15px', 
+          borderRight: '1px solid #dee2e6',
+          overflow: 'auto'
+        }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+            <h3 style={{ margin: 0 }}>Folders</h3>
+            <button onClick={() => setShowFolderModal(true)} style={{ padding: '5px 10px', fontSize: '12px' }}>+</button>
           </div>
-          <select 
-            value={selectedCategory} 
-            onChange={(e) => setSelectedCategory(e.target.value)}
-            style={{ width: '200px' }}
+          <div 
+            onClick={() => setSelectedFolder('')}
+            style={{ 
+              padding: '8px', 
+              cursor: 'pointer', 
+              background: selectedFolder === '' ? '#e3f2fd' : 'transparent',
+              borderRadius: '4px',
+              marginBottom: '5px'
+            }}
           >
-            <option value="">All Categories</option>
-            {categoryList.map(cat => (
-              <option key={cat.id} value={cat.id}>{cat.name}</option>
-            ))}
-          </select>
+            📋 All Items
+          </div>
+          {renderFolderTree(folderList)}
         </div>
 
-        <div className="search-bar">
-          <input
-            type="text"
-            placeholder={activeTab === 'passwords' ? "Search passwords..." : "Search cards..."}
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-        </div>
+        <div style={{ flex: 1, padding: '20px' }}>
+          <div className="tabs">
+            <button 
+              className={activeTab === 'passwords' ? 'tab active' : 'tab'} 
+              onClick={() => setActiveTab('passwords')}
+            >
+              Passwords
+            </button>
+            <button 
+              className={activeTab === 'cards' ? 'tab active' : 'tab'} 
+              onClick={() => setActiveTab('cards')}
+            >
+              Cards
+            </button>
+          </div>
 
-        {activeTab === 'passwords' && (
-          passwordList.length === 0 ? (
-            <div className="empty-state">
-              <p>No passwords found. Add your first password!</p>
+          <div className="actions-bar">
+            <div>
+              {activeTab === 'passwords' ? (
+                <Link to="/add">
+                  <button className="success">+ Add Password</button>
+                </Link>
+              ) : (
+                <Link to="/add-card">
+                  <button className="success">+ Add Card</button>
+                </Link>
+              )}
+              {activeTab === 'passwords' && (
+                <>
+                  <button onClick={() => setShowImportModal(true)}>Import</button>
+                  <button onClick={() => setShowExportModal(true)}>Export</button>
+                </>
+              )}
             </div>
-          ) : (
-            <div className="password-list">
-              {passwordList.map(pwd => (
-                <div key={pwd.id} className="password-card">
-                  <div className="password-info">
-                    <h3>{pwd.title}</h3>
-                    <p>Username: {pwd.username || '-'}</p>
-                    <div className="password-display">
-                      <input 
-                        type="password" 
-                        value={pwd.password || ''} 
-                        readOnly 
-                        style={{ width: '200px' }}
-                      />
-                      <button onClick={() => handleCopy(pwd.password)} className="secondary">
-                        Copy
-                      </button>
+            <select 
+              value={selectedCategory} 
+              onChange={(e) => setSelectedCategory(e.target.value)}
+              style={{ width: '200px' }}
+            >
+              <option value="">All Categories</option>
+              {categoryList.map(cat => (
+                <option key={cat.id} value={cat.id}>{cat.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="search-bar">
+            <input
+              type="text"
+              placeholder={activeTab === 'passwords' ? "Search passwords..." : "Search cards..."}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          {activeTab === 'passwords' && (
+            passwordList.length === 0 ? (
+              <div className="empty-state">
+                <p>No passwords found. Add your first password!</p>
+              </div>
+            ) : (
+              <div className="password-list">
+                {passwordList.map(pwd => (
+                  <div key={pwd.id} className="password-card">
+                    <div className="password-info">
+                      <h3>{pwd.title}</h3>
+                      <p>Username: {pwd.username || '-'}</p>
+                      <div className="password-display">
+                        <input 
+                          type="password" 
+                          value={pwd.password || ''} 
+                          readOnly 
+                          style={{ width: '200px' }}
+                        />
+                        <button onClick={() => handleCopy(pwd.password)} className="secondary">
+                          Copy
+                        </button>
+                      </div>
+                      {pwd.url && <p>URL: {pwd.url}</p>}
+                      {pwd.folder_name && (
+                        <span className="category-tag" style={{ background: '#0066cc' }}>📁 {pwd.folder_name}</span>
+                      )}
+                      {pwd.category_name && (
+                        <span className="category-tag">{pwd.category_name}</span>
+                      )}
                     </div>
-                    {pwd.url && <p>URL: {pwd.url}</p>}
-                    {pwd.category_name && (
-                      <span className="category-tag">{pwd.category_name}</span>
-                    )}
+                    <div className="password-actions">
+                      <Link to={`/edit/${pwd.id}`}>
+                        <button className="secondary">Edit</button>
+                      </Link>
+                      <button onClick={() => handleDeletePassword(pwd.id)} className="danger">Delete</button>
+                    </div>
                   </div>
-                  <div className="password-actions">
-                    <Link to={`/edit/${pwd.id}`}>
-                      <button className="secondary">Edit</button>
-                    </Link>
-                    <button onClick={() => handleDeletePassword(pwd.id)} className="danger">Delete</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )
-        )}
+                ))}
+              </div>
+            )
+          )}
 
-        {activeTab === 'cards' && (
-          cardList.length === 0 ? (
-            <div className="empty-state">
-              <p>No cards found. Add your first card!</p>
-            </div>
-          ) : (
-            <div className="password-list">
-              {cardList.map(card => (
-                <div key={card.id} className="password-card">
-                  <div className="password-info">
-                    <h3>{card.title}</h3>
-                    <p>Cardholder: {card.cardholder_name || '-'}</p>
-                    <p>Card Number: {maskCardNumber(card.card_number)}</p>
-                    <p>Expires: {card.expiry_month}/{card.expiry_year}</p>
-                    {card.brand && <p>Brand: {card.brand}</p>}
-                    {card.category_name && (
-                      <span className="category-tag">{card.category_name}</span>
-                    )}
+          {activeTab === 'cards' && (
+            cardList.length === 0 ? (
+              <div className="empty-state">
+                <p>No cards found. Add your first card!</p>
+              </div>
+            ) : (
+              <div className="password-list">
+                {cardList.map(card => (
+                  <div key={card.id} className="password-card">
+                    <div className="password-info">
+                      <h3>{card.title}</h3>
+                      <p>Cardholder: {card.cardholder_name || '-'}</p>
+                      <p>Card Number: {maskCardNumber(card.card_number)}</p>
+                      <p>Expires: {card.expiry_month}/{card.expiry_year}</p>
+                      {card.brand && <p>Brand: {card.brand}</p>}
+                      {card.category_name && (
+                        <span className="category-tag">{card.category_name}</span>
+                      )}
+                    </div>
+                    <div className="password-actions">
+                      <button onClick={() => handleCopy(card.card_number)} className="secondary">
+                        Copy Number
+                      </button>
+                      <Link to={`/edit-card/${card.id}`}>
+                        <button className="secondary">Edit</button>
+                      </Link>
+                      <button onClick={() => handleDeleteCard(card.id)} className="danger">Delete</button>
+                    </div>
                   </div>
-                  <div className="password-actions">
-                    <button onClick={() => handleCopy(card.card_number)} className="secondary">
-                      Copy Number
-                    </button>
-                    <Link to={`/edit-card/${card.id}`}>
-                      <button className="secondary">Edit</button>
-                    </Link>
-                    <button onClick={() => handleDeleteCard(card.id)} className="danger">Delete</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )
-        )}
+                ))}
+              </div>
+            )
+          )}
+        </div>
       </div>
+
+      {showFolderModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center'
+        }}>
+          <div className="form-container">
+            <h2>Create Folder</h2>
+            <div className="form-group">
+              <label>Folder Name</label>
+              <input
+                type="text"
+                value={newFolder.name}
+                onChange={(e) => setNewFolder({ ...newFolder, name: e.target.value })}
+                placeholder="e.g., Google, Facebook"
+              />
+            </div>
+            <div className="form-group">
+              <label>Parent Folder (optional)</label>
+              <select
+                value={newFolder.parent_id}
+                onChange={(e) => setNewFolder({ ...newFolder, parent_id: e.target.value })}
+              >
+                <option value="">None (Root)</option>
+                {folderList.map(f => (
+                  <option key={f.id} value={f.id}>{f.name}</option>
+                ))}
+              </select>
+            </div>
+            <div className="form-actions">
+              <button onClick={handleCreateFolder} className="success">Create</button>
+              <button onClick={() => setShowFolderModal(false)} className="secondary">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showExportModal && (
         <div style={{

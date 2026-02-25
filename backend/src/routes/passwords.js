@@ -11,12 +11,13 @@ router.get('/', (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;
-    const { search, category_id } = req.query;
+    const { search, category_id, folder_id } = req.query;
 
     let query = `
-      SELECT p.*, c.name as category_name 
+      SELECT p.*, c.name as category_name, f.name as folder_name
       FROM passwords p 
       LEFT JOIN categories c ON p.category_id = c.id 
+      LEFT JOIN folders f ON p.folder_id = f.id
       WHERE p.user_id = ?
     `;
     const params = [userId];
@@ -30,6 +31,11 @@ router.get('/', (req, res) => {
     if (category_id) {
       query += ` AND p.category_id = ?`;
       params.push(category_id);
+    }
+
+    if (folder_id) {
+      query += ` AND p.folder_id = ?`;
+      params.push(folder_id);
     }
 
     query += ` ORDER BY p.created_at DESC`;
@@ -52,7 +58,7 @@ router.post('/', (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;
-    const { title, username, password, url, category_id, notes } = req.body;
+    const { title, username, password, url, folder_id, category_id, notes } = req.body;
 
     if (!title || !password) {
       return res.status(400).json({ error: 'Title and password are required' });
@@ -61,9 +67,9 @@ router.post('/', (req, res) => {
     const encryptedPassword = encrypt(password);
     
     const result = db.prepare(`
-      INSERT INTO passwords (user_id, title, username, encrypted_password, url, category_id, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(userId, title, username || null, encryptedPassword, url || null, category_id || null, notes || null);
+      INSERT INTO passwords (user_id, title, username, encrypted_password, url, folder_id, category_id, notes)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(userId, title, username || null, encryptedPassword, url || null, folder_id || null, category_id || null, notes || null);
 
     sendNotification(db, userId, 'New Password Added', `A new password "${title}" was added to your vault.`, 'add');
 
@@ -74,6 +80,7 @@ router.post('/', (req, res) => {
       username,
       password,
       url,
+      folder_id,
       category_id,
       notes
     });
@@ -88,7 +95,7 @@ router.put('/:id', (req, res) => {
     const db = req.db;
     const userId = req.user.id;
     const { id } = req.params;
-    const { title, username, password, url, category_id, notes } = req.body;
+    const { title, username, password, url, folder_id, category_id, notes } = req.body;
 
     const existing = db.prepare('SELECT * FROM passwords WHERE id = ? AND user_id = ?').get(id, userId);
 
@@ -100,13 +107,14 @@ router.put('/:id', (req, res) => {
 
     db.prepare(`
       UPDATE passwords 
-      SET title = ?, username = ?, encrypted_password = ?, url = ?, category_id = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
+      SET title = ?, username = ?, encrypted_password = ?, url = ?, folder_id = ?, category_id = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
       WHERE id = ? AND user_id = ?
     `).run(
       title || existing.title,
       username !== undefined ? username : existing.username,
       encryptedPassword,
       url !== undefined ? url : existing.url,
+      folder_id !== undefined ? folder_id : existing.folder_id,
       category_id !== undefined ? category_id : existing.category_id,
       notes !== undefined ? notes : existing.notes,
       id,
@@ -160,9 +168,10 @@ router.get('/export', (req, res) => {
     const userId = req.user.id;
 
     const passwords = db.prepare(`
-      SELECT p.*, c.name as category_name 
+      SELECT p.*, c.name as category_name, f.name as folder_name
       FROM passwords p 
       LEFT JOIN categories c ON p.category_id = c.id 
+      LEFT JOIN folders f ON p.folder_id = f.id
       WHERE p.user_id = ?
     `).all(userId);
 
@@ -171,6 +180,7 @@ router.get('/export', (req, res) => {
       username: p.username,
       password: decrypt(p.encrypted_password),
       url: p.url,
+      folder: p.folder_name,
       category: p.category_name,
       notes: p.notes,
       created_at: p.created_at,
