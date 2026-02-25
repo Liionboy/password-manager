@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: password-manager-backend
+    ports:
+      - "5000:5000"
+    volumes:
+      - db-data:/app/data
+    environment:
+      - NODE_ENV=production
+      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
+      - ENCRYPTION_KEY=32-char-encryption-key-here!!
+    restart: unless-stopped
+    networks:
+      - password-manager-network
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: password-manager-frontend
+    ports:
+      - "1532:80"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    networks:
+      - password-manager-network
+
+volumes:
+  db-data:
+
+networks:
+  password-manager-network:
+    driver: bridge
