@@ -99,24 +99,28 @@ function Dashboard({ token, setToken }) {
         <div style={{ 
           display: 'flex', 
           alignItems: 'center', 
-          padding: '8px',
+          padding: '10px 12px',
           cursor: 'pointer',
-          background: selectedFolder === folder.id ? '#e3f2fd' : 'transparent',
-          borderRadius: '4px',
-          gap: '5px'
+          background: selectedFolder === folder.id ? 'rgba(0, 240, 255, 0.1)' : 'transparent',
+          border: selectedFolder === folder.id ? '1px solid rgba(0, 240, 255, 0.3)' : '1px solid transparent',
+          borderRadius: '8px',
+          gap: '8px',
+          marginBottom: '4px',
+          color: selectedFolder === folder.id ? '#00f0ff' : '#94a3b8',
+          transition: 'all 0.3s ease'
         }}>
           {folder.children && folder.children.length > 0 && (
-            <span onClick={() => toggleFolder(folder.id)} style={{ cursor: 'pointer', width: '20px' }}>
+            <span onClick={() => toggleFolder(folder.id)} style={{ cursor: 'pointer', width: '16px', color: '#00f0ff' }}>
               {expandedFolders[folder.id] ? '▼' : '▶'}
             </span>
           )}
-          {!folder.children?.length && <span style={{ width: '20px' }}></span>}
+          {!folder.children?.length && <span style={{ width: '16px' }}></span>}
           <span onClick={() => setSelectedFolder(folder.id)} style={{ flex: 1 }}>
             📁 {folder.name}
           </span>
           <button 
             onClick={() => handleDeleteFolder(folder.id)} 
-            style={{ padding: '2px 6px', fontSize: '10px', background: '#dc3545', color: 'white', border: 'none', borderRadius: '3px' }}
+            style={{ padding: '4px 8px', fontSize: '10px', background: 'rgba(220, 38, 38, 0.2)', color: '#f87171', border: '1px solid rgba(220, 38, 38, 0.3)', borderRadius: '4px', cursor: 'pointer' }}
           >
             ✕
           </button>
@@ -245,24 +249,27 @@ function Dashboard({ token, setToken }) {
 
       <div style={{ display: 'flex', minHeight: 'calc(100vh - 80px)' }}>
         <div style={{ 
-          width: '250px', 
-          background: '#f8f9fa', 
-          padding: '15px', 
-          borderRight: '1px solid #dee2e6',
+          width: '260px', 
+          background: 'rgba(17, 24, 39, 0.6)', 
+          borderRight: '1px solid #1e293b',
+          padding: '20px', 
           overflow: 'auto'
         }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-            <h3 style={{ margin: 0 }}>Folders</h3>
-            <button onClick={() => setShowFolderModal(true)} style={{ padding: '5px 10px', fontSize: '12px' }}>+</button>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
+            <h3 style={{ margin: 0, color: '#00f0ff', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>Folders</h3>
+            <button onClick={() => setShowFolderModal(true)} style={{ padding: '6px 12px', fontSize: '12px' }}>+</button>
           </div>
           <div 
             onClick={() => setSelectedFolder('')}
             style={{ 
-              padding: '8px', 
+              padding: '10px 12px', 
               cursor: 'pointer', 
-              background: selectedFolder === '' ? '#e3f2fd' : 'transparent',
-              borderRadius: '4px',
-              marginBottom: '5px'
+              background: selectedFolder === '' ? 'rgba(0, 240, 255, 0.1)' : 'transparent',
+              border: selectedFolder === '' ? '1px solid rgba(0, 240, 255, 0.3)' : '1px solid transparent',
+              borderRadius: '8px',
+              marginBottom: '8px',
+              color: selectedFolder === '' ? '#00f0ff' : '#94a3b8',
+              transition: 'all 0.3s ease'
             }}
           >
             📋 All Items
@@ -407,7 +414,8 @@ function Dashboard({ token, setToken }) {
       {showFolderModal && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center'
+          background: 'rgba(0, 0, 0, 0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          backdropFilter: 'blur(4px)'
         }}>
           <div className="form-container">
             <h2>Create Folder</h2>
@@ -443,11 +451,12 @@ function Dashboard({ token, setToken }) {
       {showExportModal && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center'
+          background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          backdropFilter: 'blur(4px)'
         }}>
           <div className="form-container">
             <h2>Export Passwords</h2>
-            <p>Download all your passwords as a JSON file?</p>
+            <p style={{ color: '#94a3b8', marginBottom: '20px' }}>Download all your passwords as a JSON file?</p>
             <div className="form-actions">
               <button onClick={handleExport} className="success">Export</button>
               <button onClick={() => setShowExportModal(false)} className="secondary">Cancel</button>
@@ -459,11 +468,12 @@ function Dashboard({ token, setToken }) {
       {showImportModal && (
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center'
+          background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          backdropFilter: 'blur(4px)'
         }}>
           <div className="form-container">
             <h2>Import Passwords</h2>
-            <p>Paste JSON array of passwords:</p>
+            <p style={{ color: '#94a3b8', marginBottom: '15px' }}>Paste JSON array of passwords:</p>
             <textarea
               value={importData}
               onChange={(e) => setImportData(e.target.value)}
