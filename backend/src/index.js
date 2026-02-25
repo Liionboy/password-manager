@@ -2,13 +2,19 @@ const express = require('express');
 const cors = require('cors');
 const Database = require('better-sqlite3');
 const path = require('path');
+const fs = require('fs');
 const authRoutes = require('./routes/auth');
 const passwordRoutes = require('./routes/passwords');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
 
-const db = new Database(path.join(__dirname, 'data', 'passwords.db'));
+const dataDir = path.join(__dirname, 'data');
+if (!fs.existsSync(dataDir)) {
+  fs.mkdirSync(dataDir, { recursive: true });
+}
+
+const db = new Database(path.join(dataDir, 'passwords.db'));
 
 db.exec(`
   CREATE TABLE IF NOT EXISTS users (
