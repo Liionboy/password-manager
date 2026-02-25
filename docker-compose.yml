@@ -10,8 +10,8 @@ services:
       - db-data:/app/data
     environment:
       - NODE_ENV=production
-      - JWT_SECRET=your-super-secret-jwt-key-change-in-production
-      - ENCRYPTION_KEY=32-char-encryption-key-here!!
+      - JWT_SECRET=__PUNE_AICI_JWT_SECRET__
+      - ENCRYPTION_KEY=__PUNE_AICI_ENCRYPTION_KEY__
     restart: unless-stopped
     networks:
       - password-manager-network
