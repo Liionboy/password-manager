@@ -2,11 +2,11 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-COPY package.json ./
+COPY backend/package.json ./
 
 RUN npm install --production
 
-COPY src ./src
+COPY backend/src ./src
 
 RUN mkdir -p /app/data
 
