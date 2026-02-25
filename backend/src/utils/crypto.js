@@ -1,5 +1,15 @@
 const CryptoJS = require('crypto-js');
-const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY || '32-char-encryption-key-here!!';
+const ENCRYPTION_KEY = process.env.ENCRYPTION_KEY;
+
+if (!ENCRYPTION_KEY) {
+  console.error('ERROR: ENCRYPTION_KEY environment variable is not set!');
+  process.exit(1);
+}
+
+if (ENCRYPTION_KEY.length !== 32) {
+  console.error('ERROR: ENCRYPTION_KEY must be exactly 32 characters!');
+  process.exit(1);
+}
 
 function encrypt(text) {
   return CryptoJS.AES.encrypt(text, ENCRYPTION_KEY).toString();
