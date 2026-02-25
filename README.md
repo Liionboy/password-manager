@@ -2,19 +2,21 @@
 
 A secure, self-hosted password manager application built with React, Node.js, and SQLite - all containerized with Docker.
 
-![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Version](https://img.shields.io/badge/version-1.1.0-blue)
 ![Docker](https://img.shields.io/badge/Docker-ready-blueviolet)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 ## ✨ Features
 
 - **Secure Authentication** - User registration and login with JWT tokens
-- **AES-256 Encryption** - All passwords are encrypted at rest
+- **AES-256 Encryption** - All passwords and card numbers are encrypted at rest
 - **Password Generator** - Customizable password generator (length, uppercase, lowercase, numbers, symbols)
-- **Categories** - Organize your passwords with custom categories
-- **Search** - Real-time search across all your passwords
-- **Import/Export** - Export passwords to JSON and import from other password managers
+- **Categories** - Organize your passwords and cards with custom categories
+- **Search** - Real-time search across all your passwords and cards
+- **Import/Export** - Export passwords to JSON and import from other password managers (including Bitwarden)
 - **Copy to Clipboard** - One-click copy functionality
+- **Bank Cards** - Store and manage your credit/debit cards with auto-brand detection
+- **Email Notifications** - Get notified via email when passwords or cards are added, updated, or deleted (SMTP)
 - **Responsive Design** - Works on desktop and mobile devices
 
 ## 🛠️ Tech Stack
@@ -26,6 +28,7 @@ A secure, self-hosted password manager application built with React, Node.js, an
 | Database | SQLite (better-sqlite3) |
 | Authentication | JWT + bcrypt |
 | Encryption | AES-256 (crypto-js) |
+| Email | Nodemailer (SMTP) |
 | Container | Docker + Nginx |
 
 ## 🚀 Quick Start
@@ -63,10 +66,17 @@ http://localhost:1532
 
 ### Adding a Password
 
-1. Click the **+ Add Password** button
+1. Click the **+ Add Password** button (in the Passwords tab)
 2. Fill in the required fields (Title, Password)
 3. Optionally add: username, URL, category, notes
 4. Use the **Generate** button to create a strong password
+
+### Adding a Card
+
+1. Click the **Cards** tab
+2. Click **+ Add Card**
+3. Fill in the required fields (Title, Card Number)
+4. Card brand (Visa, Mastercard, etc.) is auto-detected
 
 ### Password Generator Options
 
@@ -79,7 +89,19 @@ http://localhost:1532
 ### Export/Import
 
 - **Export** - Downloads all your passwords as a JSON file
-- **Import** - Paste JSON data to import passwords from other sources
+- **Import** - Paste JSON data to import passwords from other sources (supports Bitwarden export format)
+
+### Email Notifications
+
+1. Click **Settings** in the header
+2. Configure your SMTP server:
+   - **SMTP Host** - e.g., `smtp.gmail.com`
+   - **SMTP Port** - e.g., `587` (TLS) or `465` (SSL)
+   - **SMTP Username** - Your email address
+   - **SMTP Password** - For Gmail, use an [App Password](https://support.google.com/accounts/answer/185833)
+   - **From Email** - e.g., `Password Manager <your@email.com>`
+3. Enable notifications for add/update/delete events
+4. Click **Send Test Email** to verify settings
 
 ## 📁 Project Structure
 
@@ -96,7 +118,9 @@ password-manager/
 │       │   └── auth.js  # JWT authentication
 │       ├── routes/
 │       │   ├── auth.js    # Auth endpoints
-│       │   └── passwords.js # Password CRUD
+│       │   ├── passwords.js # Password CRUD
+│       │   ├── cards.js   # Card CRUD
+│       │   └── settings.js # SMTP settings
 │       └── utils/
 │           └── crypto.js  # AES encryption
 └── frontend/
@@ -112,7 +136,9 @@ password-manager/
             ├── Login.jsx       # Login page
             ├── Register.jsx     # Registration page
             ├── Dashboard.jsx    # Main dashboard
-            └── PasswordForm.jsx # Add/Edit password
+            ├── PasswordForm.jsx # Add/Edit password
+            ├── CardForm.jsx     # Add/Edit card
+            └── Settings.jsx     # SMTP settings
 ```
 
 ## 🔧 Configuration
@@ -130,9 +156,9 @@ The following environment variables can be configured in `docker-compose.yml`:
 
 ## 🔒 Security Considerations
 
-- All passwords are encrypted using AES-256 before storage
+- All passwords and card numbers are encrypted using AES-256 before storage
 - JWT tokens expire after 24 hours
-- Passwords are never stored in plain text
+- Passwords and card data are never stored in plain text
 - SQLite database is stored in a Docker volume for persistence
 - Use strong, unique passwords for your master account
 
@@ -156,12 +182,27 @@ The following environment variables can be configured in `docker-compose.yml`:
 | GET | `/api/passwords/export` | Export passwords |
 | POST | `/api/passwords/import` | Import passwords |
 
+### Cards
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/cards` | Get all cards |
+| POST | `/api/cards` | Create card |
+| PUT | `/api/cards/:id` | Update card |
+| DELETE | `/api/cards/:id` | Delete card |
+
 ### Categories
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/passwords/categories` | Get all categories |
 | POST | `/api/passwords/categories` | Create category |
 | DELETE | `/api/passwords/categories/:id` | Delete category |
+
+### Settings
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/settings` | Get user settings |
+| PUT | `/api/settings` | Save SMTP settings |
+| POST | `/api/settings/test-email` | Send test email |
 
 ## 🐳 Docker Commands
 
