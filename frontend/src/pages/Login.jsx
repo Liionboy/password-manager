@@ -22,7 +22,17 @@ function Login({ setToken }) {
 
   return (
     <div className="auth-container">
-      <h1>Login</h1>
+      <div className="logo">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" width="64" height="64">
+          <rect width="64" height="64" rx="12" fill="#0066cc"/>
+          <rect x="8" y="28" width="48" height="32" rx="4" fill="#ffffff"/>
+          <path d="M20 28V20C20 14.4772 24.4772 10 30 10C35.5228 10 40 14.4772 40 20V28" stroke="#ffffff" stroke-width="4" stroke-linecap="round"/>
+          <circle cx="30" cy="38" r="6" fill="#0066cc"/>
+          <rect x="28" y="38" width="4" height="10" rx="2" fill="#0066cc"/>
+          <rect x="26" y="44" width="8" height="3" rx="1.5" fill="#0066cc"/>
+        </svg>
+      </div>
+      <h1>Password Manager</h1>
       {error && <p className="error">{error}</p>}
       <form onSubmit={handleSubmit}>
         <div className="form-group">
