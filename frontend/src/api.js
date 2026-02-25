@@ -46,4 +46,10 @@ export const cards = {
   delete: (id) => api.delete(`/cards/${id}`)
 };
 
+export const settings = {
+  get: () => api.get('/settings'),
+  save: (data) => api.put('/settings', data),
+  testEmail: (data) => api.post('/settings/test-email', data)
+};
+
 export default api;

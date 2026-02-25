@@ -1,6 +1,7 @@
 const express = require('express');
 const { authenticateToken } = require('../middleware/auth');
 const { encrypt, decrypt } = require('../utils/crypto');
+const { sendNotification } = require('./settings');
 
 const router = express.Router();
 
@@ -66,6 +67,8 @@ router.post('/', (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(userId, title, cardholder_name || null, encryptedCardNumber, expiry_month || null, expiry_year || null, encryptedCvv, brand || null, category_id || null, notes || null);
 
+    sendNotification(db, userId, 'New Card Added', `A new card "${title}" was added to your vault.`, 'add');
+
     res.status(201).json({ 
       message: 'Card saved successfully',
       id: result.lastInsertRowid,
@@ -119,6 +122,8 @@ router.put('/:id', (req, res) => {
       userId
     );
 
+    sendNotification(db, userId, 'Card Updated', `The card "${title || existing.title}" was updated.`, 'update');
+
     res.json({ message: 'Card updated successfully' });
   } catch (error) {
     console.error('Update card error:', error);
@@ -137,6 +142,8 @@ router.delete('/:id', (req, res) => {
     if (result.changes === 0) {
       return res.status(404).json({ error: 'Card not found' });
     }
+
+    sendNotification(db, userId, 'Card Deleted', `A card was deleted from your vault.`, 'delete');
 
     res.json({ message: 'Card deleted successfully' });
   } catch (error) {

@@ -1,6 +1,7 @@
 const express = require('express');
 const { authenticateToken } = require('../middleware/auth');
 const { encrypt, decrypt, generatePassword } = require('../utils/crypto');
+const { sendNotification } = require('./settings');
 
 const router = express.Router();
 
@@ -64,6 +65,8 @@ router.post('/', (req, res) => {
       VALUES (?, ?, ?, ?, ?, ?, ?)
     `).run(userId, title, username || null, encryptedPassword, url || null, category_id || null, notes || null);
 
+    sendNotification(db, userId, 'New Password Added', `A new password "${title}" was added to your vault.`, 'add');
+
     res.status(201).json({ 
       message: 'Password saved successfully',
       id: result.lastInsertRowid,
@@ -110,6 +113,8 @@ router.put('/:id', (req, res) => {
       userId
     );
 
+    sendNotification(db, userId, 'Password Updated', `The password "${title || existing.title}" was updated.`, 'update');
+
     res.json({ message: 'Password updated successfully' });
   } catch (error) {
     console.error('Update password error:', error);
@@ -128,6 +133,8 @@ router.delete('/:id', (req, res) => {
     if (result.changes === 0) {
       return res.status(404).json({ error: 'Password not found' });
     }
+
+    sendNotification(db, userId, 'Password Deleted', `A password was deleted from your vault.`, 'delete');
 
     res.json({ message: 'Password deleted successfully' });
   } catch (error) {

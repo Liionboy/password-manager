@@ -142,7 +142,12 @@ function Dashboard({ token, setToken }) {
       <div className="header">
         <div className="header-content">
           <h1>Password Manager</h1>
-          <button onClick={handleLogout} className="secondary">Logout</button>
+          <div style={{ display: 'flex', gap: '10px' }}>
+            <Link to="/settings">
+              <button className="secondary">Settings</button>
+            </Link>
+            <button onClick={handleLogout} className="secondary">Logout</button>
+          </div>
         </div>
       </div>
 

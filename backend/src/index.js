@@ -6,6 +6,7 @@ const fs = require('fs');
 const authRoutes = require('./routes/auth');
 const passwordRoutes = require('./routes/passwords');
 const cardRoutes = require('./routes/cards');
+const settingsRoutes = require('./routes/settings');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -64,6 +65,20 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (category_id) REFERENCES categories(id) ON DELETE SET NULL
   );
+
+  CREATE TABLE IF NOT EXISTS settings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL UNIQUE,
+    smtp_host TEXT,
+    smtp_port INTEGER,
+    smtp_user TEXT,
+    smtp_password TEXT,
+    smtp_from TEXT,
+    notify_on_add INTEGER DEFAULT 0,
+    notify_on_update INTEGER DEFAULT 0,
+    notify_on_delete INTEGER DEFAULT 0,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
 `);
 
 app.use(cors());
@@ -77,6 +92,7 @@ app.use((req, res, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/passwords', passwordRoutes);
 app.use('/api/cards', cardRoutes);
+app.use('/api/settings', settingsRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
