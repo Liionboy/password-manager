@@ -90,8 +90,8 @@ function Dashboard({ token, setToken }) {
   const handleImport = async () => {
     try {
       const data = JSON.parse(importData);
-      if (!Array.isArray(data)) {
-        alert('Invalid format. Expected an array of passwords.');
+      if (!Array.isArray(data) && !(data.items && Array.isArray(data.items))) {
+        alert('Invalid format. Expected an array of passwords or Bitwarden export.');
         return;
       }
       await passwords.import(data);
