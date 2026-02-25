@@ -91,7 +91,39 @@ router.post('/test-email', async (req, res) => {
       from: smtp_from,
       to: smtp_user,
       subject: 'Password Manager - Test Email',
-      text: 'If you receive this email, your SMTP settings are working correctly!'
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px; }
+            .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            .header { background: linear-gradient(135deg, #0066cc, #0052a3); color: white; padding: 30px; text-align: center; }
+            .header h1 { margin: 0; font-size: 24px; }
+            .content { padding: 30px; color: #333; }
+            .content p { margin: 10px 0; line-height: 1.6; }
+            .success-badge { display: inline-block; background: #28a745; color: white; padding: 10px 20px; border-radius: 5px; margin-top: 20px; }
+            .footer { background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 12px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>🔐 Password Manager</h1>
+            </div>
+            <div class="content">
+              <p>Hello,</p>
+              <p>This is a <strong>test email</strong> to verify your SMTP settings are working correctly.</p>
+              <p>✅ Everything is configured properly!</p>
+              <div class="success-badge">Settings Verified</div>
+            </div>
+            <div class="footer">
+              <p>This is an automated message from your Password Manager</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `
     });
 
     res.json({ message: 'Test email sent successfully!' });
@@ -124,11 +156,68 @@ const sendNotification = async (db, userId, subject, body, actionType) => {
       }
     });
 
+    const getActionEmoji = (actionType) => {
+      switch(actionType) {
+        case 'add': return '➕';
+        case 'update': return '✏️';
+        case 'delete': return '🗑️';
+        default: return '📝';
+      }
+    };
+
+    const getActionText = (actionType) => {
+      switch(actionType) {
+        case 'add': return 'added';
+        case 'update': return 'updated';
+        case 'delete': return 'deleted';
+        default: return 'modified';
+      }
+    };
+
     await transporter.sendMail({
       from: settings.smtp_from,
       to: settings.smtp_user,
-      subject,
-      text: body
+      subject: subject,
+      html: `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px; }
+            .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            .header { background: linear-gradient(135deg, #0066cc, #0052a3); color: white; padding: 30px; text-align: center; }
+            .header h1 { margin: 0; font-size: 24px; }
+            .content { padding: 30px; color: #333; }
+            .content p { margin: 10px 0; line-height: 1.6; }
+            .alert { padding: 15px; border-radius: 5px; margin: 15px 0; }
+            .alert-add { background: #d4edda; border-left: 4px solid #28a745; }
+            .alert-update { background: #fff3cd; border-left: 4px solid #ffc107; }
+            .alert-delete { background: #f8d7da; border-left: 4px solid #dc3545; }
+            .footer { background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 12px; }
+            .timestamp { color: #999; font-size: 12px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>🔐 Password Manager</h1>
+            </div>
+            <div class="content">
+              <p>Hello,</p>
+              <p>Your password vault has been <strong>${getActionText(actionType)}</strong>:</p>
+              <div class="alert alert-${actionType}">
+                <strong>${getActionEmoji(actionType)} ${subject}</strong>
+                <p style="margin: 5px 0 0 0;">${body}</p>
+              </div>
+              <p class="timestamp">Time: ${new Date().toLocaleString()}</p>
+            </div>
+            <div class="footer">
+              <p>If you did not perform this action, please secure your account immediately.</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      `
     });
   } catch (error) {
     console.error('Email notification error:', error);
