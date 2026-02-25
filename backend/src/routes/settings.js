@@ -79,8 +79,12 @@ router.post('/test-email', async (req, res) => {
     const transporter = nodemailer.createTransport({
       host: smtp_host,
       port: parseInt(smtp_port),
-      secure: smtp_port === 465,
-      connectionTimeout: 10000,
+      secure: parseInt(smtp_port) === 465,
+      tls: {
+        rejectUnauthorized: false,
+        secure: parseInt(smtp_port) === 587
+      },
+      connectionTimeout: 15000,
       auth: {
         user: smtp_user,
         pass: smtp_password
@@ -149,7 +153,11 @@ const sendNotification = async (db, userId, subject, body, actionType) => {
       host: settings.smtp_host,
       port: settings.smtp_port,
       secure: settings.smtp_port === 465,
-      connectionTimeout: 10000,
+      tls: {
+        rejectUnauthorized: false,
+        secure: settings.smtp_port === 587
+      },
+      connectionTimeout: 15000,
       auth: {
         user: settings.smtp_user,
         pass: settings.smtp_password
