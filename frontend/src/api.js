@@ -23,6 +23,7 @@ export const auth = {
   verify: () => api.get('/auth/verify'),
   getUsers: () => api.get('/auth/users'),
   createUser: (data) => api.post('/auth/users', data),
+  updateUser: (id, data) => api.put(`/auth/users/${id}`, data),
   deleteUser: (id) => api.delete(`/auth/users/${id}`)
 };
 

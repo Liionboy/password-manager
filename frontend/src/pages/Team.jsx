@@ -8,6 +8,8 @@ function Team({ token }) {
   const [newUser, setNewUser] = useState({ username: '', password: '', role: 'user' });
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [editingUser, setEditingUser] = useState(null);
+  const [editRole, setEditRole] = useState('');
 
   useEffect(() => {
     loadUsers();
@@ -53,6 +55,18 @@ function Team({ token }) {
       loadUsers();
     } catch (err) {
       alert(err.response?.data?.error || 'Error deleting user');
+    }
+  };
+
+  const handleEditUser = async () => {
+    if (!editingUser) return;
+    try {
+      await auth.updateUser(editingUser.id, { role: editRole });
+      setSuccess('User updated successfully!');
+      setEditingUser(null);
+      loadUsers();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error updating user');
     }
   };
 
@@ -122,6 +136,8 @@ function Team({ token }) {
 
         <div style={{ marginTop: '30px' }}>
           <h2 style={{ marginBottom: '20px' }}>Team Members</h2>
+          {error && <p className="error">{error}</p>}
+          {success && <p className="success" style={{ color: '#00f0ff' }}>{success}</p>}
           <div className="password-list">
             {users.map(user => (
               <div key={user.id} className="password-card">
@@ -134,12 +150,36 @@ function Team({ token }) {
                   <p>Created: {new Date(user.created_at).toLocaleDateString()}</p>
                 </div>
                 <div className="password-actions">
+                  <button onClick={() => { setEditingUser(user); setEditRole(user.role); setError(''); setSuccess(''); }} className="secondary">Edit</button>
                   <button onClick={() => handleDeleteUser(user.id)} className="danger">Delete</button>
                 </div>
               </div>
             ))}
           </div>
         </div>
+
+        {editingUser && (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0, 0, 0, 0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            backdropFilter: 'blur(4px)'
+          }}>
+            <div className="form-container" style={{ maxWidth: '400px' }}>
+              <h2>Edit User: {editingUser.username}</h2>
+              <div className="form-group">
+                <label>Role</label>
+                <select value={editRole} onChange={(e) => setEditRole(e.target.value)}>
+                  <option value="user">User</option>
+                  <option value="admin">Admin</option>
+                </select>
+              </div>
+              <div className="form-actions">
+                <button onClick={handleEditUser} className="success">Save</button>
+                <button onClick={() => setEditingUser(null)} className="secondary">Cancel</button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

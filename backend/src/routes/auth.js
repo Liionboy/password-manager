@@ -123,6 +123,38 @@ router.post('/users', authenticateToken, async (req, res) => {
   }
 });
 
+router.put('/users/:id', authenticateToken, (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { id } = req.params;
+    const { role, password } = req.body;
+    const db = req.db;
+
+    const existing = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
+    if (!existing) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    if (role) {
+      db.prepare('UPDATE users SET role = ? WHERE id = ?').run(role, id);
+    }
+
+    if (password) {
+      const bcrypt = require('bcryptjs');
+      const hashedPassword = bcrypt.hashSync(password, 10);
+      db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hashedPassword, id);
+    }
+
+    res.json({ message: 'User updated successfully' });
+  } catch (error) {
+    console.error('Update user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.delete('/users/:id', authenticateToken, (req, res) => {
   try {
     if (req.user.role !== 'admin') {
