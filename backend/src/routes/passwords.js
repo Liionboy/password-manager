@@ -44,12 +44,14 @@ router.get('/', (req, res) => {
 
     const folderId = folder_id;
     
+    console.log('folderId value:', folderId, 'Boolean:', Boolean(folderId));
+    
     if (folderId && folderId !== '' && folderId !== 'null' && folderId !== 'undefined') {
       query += ` AND p.folder_id = ?`;
       params.push(parseInt(folderId));
       console.log('Showing passwords in folder:', parseInt(folderId));
     } else {
-      query += ` AND p.folder_id IS NULL`;
+      query += ` AND (p.folder_id IS NULL OR p.folder_id = 0)`;
       console.log('Showing passwords with NO folder');
     }
 
