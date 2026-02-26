@@ -15,6 +15,7 @@ const teamRoutes = require('./routes/teams');
 const app = express();
 const PORT = process.env.PORT || 5000;
 
+app.set('trust proxy', 1);
 app.use(helmet());
 
 const generalLimiter = rateLimit({
@@ -69,6 +70,73 @@ db.exec(`
     FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     UNIQUE(team_id, user_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS passwords (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    username TEXT,
+    password_encrypted TEXT NOT NULL,
+    url TEXT,
+    notes TEXT,
+    folder_id INTEGER,
+    team_id INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL,
+    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS cards (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    title TEXT NOT NULL,
+    cardholder_name TEXT,
+    card_number_encrypted TEXT NOT NULL,
+    expiry_month TEXT,
+    expiry_year TEXT,
+    cvv_encrypted TEXT,
+    brand TEXT,
+    folder_id INTEGER,
+    team_id INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL,
+    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS folders (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    parent_id INTEGER,
+    team_id INTEGER,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (parent_id) REFERENCES folders(id) ON DELETE CASCADE,
+    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+  );
+
+  CREATE TABLE IF NOT EXISTS settings (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    smtp_host TEXT,
+    smtp_port INTEGER,
+    smtp_user TEXT,
+    smtp_pass TEXT,
+    smtp_from TEXT,
+    is_global INTEGER DEFAULT 0,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
 `);
 
