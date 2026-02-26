@@ -205,7 +205,7 @@ router.put('/profile', authenticateToken, (req, res) => {
     if (password) {
       const bcrypt = require('bcryptjs');
       const hashedPassword = bcrypt.hashSync(password, 10);
-      db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hashedPassword, userId);
+      db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(hashedPassword, userId);
     }
 
     res.json({ message: 'Profile updated successfully' });
