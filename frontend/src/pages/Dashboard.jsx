@@ -39,7 +39,7 @@ function Dashboard({ token, setToken, role = 'user' }) {
 
   const loadPasswords = async () => {
     try {
-      const response = await passwords.getAll(search, selectedCategory || null, selectedFolder || null);
+      const response = await passwords.getAll(search, selectedCategory || null, selectedFolder);
       setPasswordList(response.data);
     } catch (err) {
       console.error('Error loading passwords:', err);
@@ -48,7 +48,7 @@ function Dashboard({ token, setToken, role = 'user' }) {
 
   const loadCards = async () => {
     try {
-      const response = await cards.getAll(search, selectedCategory || null, selectedFolder || null);
+      const response = await cards.getAll(search, selectedCategory || null, selectedFolder);
       setCardList(response.data);
     } catch (err) {
       console.error('Error loading cards:', err);
