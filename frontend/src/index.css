@@ -194,6 +194,14 @@ button.danger:hover {
   box-shadow: 0 0 20px rgba(220, 38, 38, 0.4);
 }
 
+button.warning {
+  background: linear-gradient(135deg, #f59e0b, #d97706);
+}
+
+button.warning:hover {
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.4);
+}
+
 button.success {
   background: linear-gradient(135deg, var(--accent-cyan), #0891b2);
 }

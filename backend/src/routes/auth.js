@@ -217,6 +217,28 @@ router.delete('/users/:id', authenticateToken, (req, res) => {
   }
 });
 
+router.post('/users/:id/unlock', authenticateToken, (req, res) => {
+  try {
+    if (req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+
+    const { id } = req.params;
+    const db = req.db;
+    
+    const result = db.prepare('UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?').run(id);
+
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    res.json({ message: 'User unlocked successfully' });
+  } catch (error) {
+    console.error('Unlock user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.put('/profile', authenticateToken, (req, res) => {
   try {
     const db = req.db;

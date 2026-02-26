@@ -28,6 +28,7 @@ export const auth = {
   createUser: (data) => api.post('/auth/users', data),
   updateUser: (id, data) => api.put(`/auth/users/${id}`, data),
   deleteUser: (id) => api.delete(`/auth/users/${id}`),
+  unlockUser: (id) => api.post(`/auth/users/${id}/unlock`),
   getProfile: () => api.get('/auth/me'),
   updateProfile: (data) => api.put('/auth/profile', data),
   mfaSetup: () => api.post('/auth/mfa/setup'),

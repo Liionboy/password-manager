@@ -58,6 +58,16 @@ function Team({ token }) {
     }
   };
 
+  const handleUnlockUser = async (id) => {
+    if (!window.confirm('Unlock this user?')) return;
+    try {
+      await auth.unlockUser(id);
+      loadUsers();
+    } catch (err) {
+      alert(err.response?.data?.error || 'Error unlocking user');
+    }
+  };
+
   const handleEditUser = async () => {
     if (!editingUser) return;
     try {
@@ -151,6 +161,9 @@ function Team({ token }) {
                 </div>
                 <div className="password-actions">
                   <button onClick={() => { setEditingUser(user); setEditRole(user.role); setError(''); setSuccess(''); }} className="secondary">Edit</button>
+                  {user.locked_until && new Date(user.locked_until) > new Date() && (
+                    <button onClick={() => handleUnlockUser(user.id)} className="warning">Unlock</button>
+                  )}
                   <button onClick={() => handleDeleteUser(user.id)} className="danger">Delete</button>
                 </div>
               </div>
