@@ -195,21 +195,33 @@ const sendNotification = async (db, userId, subject, body, actionType) => {
     let settings = db.prepare('SELECT * FROM settings WHERE user_id = ?').get(userId);
     const user = db.prepare('SELECT email FROM users WHERE id = ?').get(userId);
     
+    let isGlobal = false;
     if (!settings || !settings.smtp_host) {
       const globalSettings = db.prepare('SELECT * FROM settings WHERE is_global = 1').get();
       if (globalSettings && globalSettings.smtp_host) {
         settings = globalSettings;
+        isGlobal = true;
       } else {
+        console.log('No SMTP settings found for user', userId);
         return;
       }
     }
 
-    if (actionType === 'add' && !settings.notify_on_add) return;
-    if (actionType === 'update' && !settings.notify_on_update) return;
-    if (actionType === 'delete' && !settings.notify_on_delete) return;
+    const notifyOnAdd = isGlobal ? settings.notify_on_add : (settings.notify_on_add || (!settings.notify_on_add && !settings.notify_on_update && !settings.notify_on_delete));
+    const notifyOnUpdate = isGlobal ? settings.notify_on_update : (settings.notify_on_update || (!settings.notify_on_add && !settings.notify_on_update && !settings.notify_on_delete));
+    const notifyOnDelete = isGlobal ? settings.notify_on_delete : (settings.notify_on_delete || (!settings.notify_on_add && !settings.notify_on_update && !settings.notify_on_delete));
+
+    if (actionType === 'add' && !notifyOnAdd) return;
+    if (actionType === 'update' && !notifyOnUpdate) return;
+    if (actionType === 'delete' && !notifyOnDelete) return;
 
     const recipientEmail = user?.email || settings.smtp_user;
-    if (!recipientEmail) return;
+    if (!recipientEmail) {
+      console.log('No recipient email found for user', userId);
+      return;
+    }
+
+    console.log('Sending notification to:', recipientEmail, 'via SMTP:', settings.smtp_host);
 
     const transporter = nodemailer.createTransport({
       host: settings.smtp_host,
