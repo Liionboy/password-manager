@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { passwords, categories, cards, folders as foldersApi } from '../api';
 
-function Dashboard({ token, setToken }) {
+function Dashboard({ token, setToken, role = 'user' }) {
   const [activeTab, setActiveTab] = useState('passwords');
   const [passwordList, setPasswordList] = useState([]);
   const [cardList, setCardList] = useState([]);
@@ -239,6 +239,11 @@ function Dashboard({ token, setToken }) {
             <h1>Password Manager</h1>
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
+            {role === 'admin' && (
+              <Link to="/team">
+                <button className="secondary">Team</button>
+              </Link>
+            )}
             <Link to="/settings">
               <button className="secondary">Settings</button>
             </Link>
@@ -342,7 +347,21 @@ function Dashboard({ token, setToken }) {
                 {passwordList.map(pwd => (
                   <div key={pwd.id} className="password-card">
                     <div className="password-info">
-                      <h3>{pwd.title}</h3>
+                      <h3>
+                        {pwd.title}
+                        {pwd.is_shared === 1 && (
+                          <span style={{ 
+                            marginLeft: '10px', 
+                            fontSize: '12px', 
+                            color: '#00f0ff',
+                            background: 'rgba(0, 240, 255, 0.1)',
+                            padding: '2px 8px',
+                            borderRadius: '4px'
+                          }}>
+                            Shared by {pwd.owner_username}
+                          </span>
+                        )}
+                      </h3>
                       <p>Username: {pwd.username || '-'}</p>
                       <div className="password-display">
                         <input 

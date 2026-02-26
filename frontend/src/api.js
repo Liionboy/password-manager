@@ -20,7 +20,10 @@ api.interceptors.request.use((config) => {
 export const auth = {
   register: (username, password) => api.post('/auth/register', { username, password }),
   login: (username, password) => api.post('/auth/login', { username, password }),
-  verify: () => api.get('/auth/verify')
+  verify: () => api.get('/auth/verify'),
+  getUsers: () => api.get('/auth/users'),
+  createUser: (data) => api.post('/auth/users', data),
+  deleteUser: (id) => api.delete(`/auth/users/${id}`)
 };
 
 export const passwords = {
@@ -30,7 +33,10 @@ export const passwords = {
   delete: (id) => api.delete(`/passwords/${id}`),
   generate: (options) => api.post('/passwords/generate', options),
   export: () => api.get('/passwords/export'),
-  import: (passwords) => api.post('/passwords/import', { passwords })
+  import: (passwords) => api.post('/passwords/import', { passwords }),
+  share: (id, userId) => api.post(`/passwords/share/${id}`, { user_id: userId }),
+  unshare: (id, userId) => api.delete(`/passwords/share/${id}?user_id=${userId}`),
+  getShared: (id) => api.get(`/passwords/shared/${id}`)
 };
 
 export const categories = {

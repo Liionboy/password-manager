@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { auth } from '../api';
 
-function Register({ setToken }) {
+function Register({ setToken, setRole }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -25,7 +25,9 @@ function Register({ setToken }) {
     try {
       const response = await auth.register(username, password);
       localStorage.setItem('token', response.data.token);
+      localStorage.setItem('role', response.data.role || 'user');
       setToken(response.data.token);
+      if (setRole) setRole(response.data.role || 'user');
     } catch (err) {
       setError(err.response?.data?.error || 'Registration failed');
     }

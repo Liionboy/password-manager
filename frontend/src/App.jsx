@@ -6,29 +6,33 @@ import Dashboard from './pages/Dashboard';
 import PasswordForm from './pages/PasswordForm';
 import CardForm from './pages/CardForm';
 import Settings from './pages/Settings';
+import Team from './pages/Team';
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
+  const [role, setRole] = useState(localStorage.getItem('role') || 'user');
 
   useEffect(() => {
     if (token) {
       localStorage.setItem('token', token);
     } else {
       localStorage.removeItem('token');
+      localStorage.removeItem('role');
     }
   }, [token]);
 
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/login" element={!token ? <Login setToken={setToken} /> : <Navigate to="/" />} />
-        <Route path="/register" element={!token ? <Register setToken={setToken} /> : <Navigate to="/" />} />
-        <Route path="/" element={token ? <Dashboard token={token} setToken={setToken} /> : <Navigate to="/login" />} />
+        <Route path="/login" element={!token ? <Login setToken={setToken} setRole={setRole} /> : <Navigate to="/" />} />
+        <Route path="/register" element={!token ? <Register setToken={setToken} setRole={setRole} /> : <Navigate to="/" />} />
+        <Route path="/" element={token ? <Dashboard token={token} role={role} setToken={setToken} /> : <Navigate to="/login" />} />
         <Route path="/add" element={token ? <PasswordForm token={token} /> : <Navigate to="/login" />} />
         <Route path="/edit/:id" element={token ? <PasswordForm token={token} /> : <Navigate to="/login" />} />
         <Route path="/add-card" element={token ? <CardForm token={token} /> : <Navigate to="/login" />} />
         <Route path="/edit-card/:id" element={token ? <CardForm token={token} /> : <Navigate to="/login" />} />
         <Route path="/settings" element={token ? <Settings token={token} /> : <Navigate to="/login" />} />
+        <Route path="/team" element={token && role === 'admin' ? <Team token={token} /> : <Navigate to="/" />} />
       </Routes>
     </BrowserRouter>
   );
