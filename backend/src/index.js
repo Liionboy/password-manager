@@ -29,6 +29,8 @@ db.exec(`
     email TEXT,
     mfa_secret TEXT,
     mfa_enabled INTEGER DEFAULT 0,
+    reset_token TEXT,
+    reset_expires DATETIME,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 

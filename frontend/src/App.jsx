@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { useState, useEffect } from 'react';
 import Login from './pages/Login';
 import Register from './pages/Register';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 import Dashboard from './pages/Dashboard';
 import PasswordForm from './pages/PasswordForm';
 import CardForm from './pages/CardForm';
@@ -27,6 +29,8 @@ function App() {
       <Routes>
         <Route path="/login" element={!token ? <Login setToken={setToken} setRole={setRole} /> : <Navigate to="/" />} />
         <Route path="/register" element={!token ? <Register setToken={setToken} setRole={setRole} /> : <Navigate to="/" />} />
+        <Route path="/forgot-password" element={!token ? <ForgotPassword /> : <Navigate to="/" />} />
+        <Route path="/reset-password" element={!token ? <ResetPassword /> : <Navigate to="/" />} />
         <Route path="/" element={token ? <Dashboard token={token} role={role} setToken={setToken} /> : <Navigate to="/login" />} />
         <Route path="/add" element={token ? <PasswordForm token={token} /> : <Navigate to="/login" />} />
         <Route path="/edit/:id" element={token ? <PasswordForm token={token} /> : <Navigate to="/login" />} />

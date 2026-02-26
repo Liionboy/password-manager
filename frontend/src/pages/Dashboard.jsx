@@ -20,6 +20,8 @@ function Dashboard({ token, setToken, role = 'user' }) {
   const [profileData, setProfileData] = useState({ email: '', mfa_enabled: false });
   const [mfaSetupData, setMfaSetupData] = useState(null);
   const [mfaCode, setMfaCode] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
   const [importData, setImportData] = useState('');
   const [expandedFolders, setExpandedFolders] = useState({});
   const navigate = useNavigate();
@@ -285,8 +287,24 @@ function Dashboard({ token, setToken, role = 'user' }) {
 
   const handleUpdateProfile = async () => {
     try {
-      await auth.updateProfile({ email: profileData.email });
+      const data = { email: profileData.email };
+      
+      if (newPassword) {
+        if (newPassword !== confirmPassword) {
+          alert('Passwords do not match!');
+          return;
+        }
+        if (newPassword.length < 4) {
+          alert('Password must be at least 4 characters!');
+          return;
+        }
+        data.password = newPassword;
+      }
+      
+      await auth.updateProfile(data);
       alert('Profile updated successfully!');
+      setNewPassword('');
+      setConfirmPassword('');
       setShowProfileModal(false);
     } catch (err) {
       alert('Error updating profile: ' + (err.response?.data?.error || err.message));
@@ -705,6 +723,28 @@ function Dashboard({ token, setToken, role = 'user' }) {
               <small style={{ color: '#64748b', fontSize: '12px', display: 'block', marginTop: '5px' }}>
                 Receive email notifications for password changes at this address
               </small>
+            </div>
+
+            <div style={{ marginTop: '20px', padding: '15px', background: '#1a1a2e', borderRadius: '8px' }}>
+              <h3 style={{ marginTop: 0 }}>Change Password</h3>
+              <div className="form-group">
+                <label>New Password</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Leave blank to keep current password"
+                />
+              </div>
+              <div className="form-group">
+                <label>Confirm New Password</label>
+                <input
+                  type="password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Confirm new password"
+                />
+              </div>
             </div>
 
             <div style={{ marginTop: '20px', padding: '15px', background: '#1a1a2e', borderRadius: '8px' }}>

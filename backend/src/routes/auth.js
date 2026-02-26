@@ -399,4 +399,91 @@ router.post('/mfa/verify-temp', authenticateToken, (req, res) => {
   }
 });
 
+router.post('/forgot-password', async (req, res) => {
+  try {
+    const { username } = req.body;
+    
+    if (!username) {
+      return res.status(400).json({ error: 'Username is required' });
+    }
+
+    const db = req.db;
+    const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+    
+    if (!user) {
+      return res.json({ message: 'If the user exists, a recovery email has been sent' });
+    }
+
+    const crypto = require('crypto');
+    const resetToken = crypto.randomBytes(32).toString('hex');
+    const resetExpires = new Date(Date.now() + 3600000).toISOString();
+
+    db.prepare('UPDATE users SET reset_token = ?, reset_expires = ? WHERE id = ?').run(resetToken, resetExpires, user.id);
+
+    let settings = db.prepare('SELECT * FROM settings WHERE user_id = ?').get(user.id);
+    if (!settings || !settings.smtp_host) {
+      settings = db.prepare('SELECT * FROM settings WHERE is_global = 1').get();
+    }
+
+    if (settings && settings.smtp_host && user.email) {
+      const nodemailer = require('nodemailer');
+      
+      const transporter = nodemailer.createTransport({
+        host: settings.smtp_host,
+        port: settings.smtp_port,
+        secure: settings.smtp_port === 465,
+        tls: { rejectUnauthorized: false },
+        auth: {
+          user: settings.smtp_user,
+          pass: settings.smtp_password
+        }
+      });
+
+      const resetLink = `https://password.homelocal.work/reset-password?token=${resetToken}&username=${username}`;
+
+      await transporter.sendMail({
+        from: settings.smtp_from,
+        to: user.email,
+        subject: 'Password Manager - Password Recovery',
+        html: `
+          <h2>Password Recovery</h2>
+          <p>Click the link below to reset your password:</p>
+          <a href="${resetLink}" style="background: #0066cc; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px;">Reset Password</a>
+          <p>This link expires in 1 hour.</p>
+        `
+      });
+    }
+
+    res.json({ message: 'If the user exists and has an email, a recovery email has been sent' });
+  } catch (error) {
+    console.error('Forgot password error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/reset-password', async (req, res) => {
+  try {
+    const { username, token, newPassword } = req.body;
+    
+    if (!username || !token || !newPassword) {
+      return res.status(400).json({ error: 'Username, token, and new password are required' });
+    }
+
+    const db = req.db;
+    const user = db.prepare('SELECT * FROM users WHERE username = ? AND reset_token = ? AND reset_expires > datetime("now")').get(username, token);
+    
+    if (!user) {
+      return res.status(400).json({ error: 'Invalid or expired reset token' });
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    db.prepare('UPDATE users SET password_hash = ?, reset_token = NULL, reset_expires = NULL WHERE id = ?').run(passwordHash, user.id);
+
+    res.json({ message: 'Password reset successfully' });
+  } catch (error) {
+    console.error('Reset password error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;
