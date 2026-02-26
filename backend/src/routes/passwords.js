@@ -54,7 +54,6 @@ router.get('/', (req, res) => {
     query += ` ORDER BY is_shared ASC, p.created_at DESC`;
 
     const passwords = db.prepare(query).all(...params);
-    console.log('Passwords returned:', passwords.length);
 
     const decrypted = passwords.map(p => ({
       ...p,
