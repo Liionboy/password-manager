@@ -2,7 +2,7 @@
 
 A secure, self-hosted password manager application built with React, Node.js, and SQLite - all containerized with Docker.
 
-![Version](https://img.shields.io/badge/version-1.1.0-blue)
+![Version](https://img.shields.io/badge/version-1.2.0-blue)
 ![Docker](https://img.shields.io/badge/Docker-ready-blueviolet)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -12,11 +12,15 @@ A secure, self-hosted password manager application built with React, Node.js, an
 - **AES-256 Encryption** - All passwords and card numbers are encrypted at rest
 - **Password Generator** - Customizable password generator (length, uppercase, lowercase, numbers, symbols)
 - **Categories** - Organize your passwords and cards with custom categories
+- **Folders** - Organize passwords and cards in nested folders
 - **Search** - Real-time search across all your passwords and cards
 - **Import/Export** - Export passwords to JSON and import from other password managers (including Bitwarden)
 - **Copy to Clipboard** - One-click copy functionality
 - **Bank Cards** - Store and manage your credit/debit cards with auto-brand detection
 - **Email Notifications** - Get notified via email when passwords or cards are added, updated, or deleted (SMTP)
+- **Teams** - Create teams and share passwords/folders with team members
+- **Role-Based Access** - Admin and user roles with different permissions
+- **Admin Panel** - Admin can manage users, teams, and settings
 - **Responsive Design** - Works on desktop and mobile devices
 
 ## 🛠️ Tech Stack
@@ -93,7 +97,7 @@ http://localhost:1532
 
 ### Email Notifications
 
-1. Click **Settings** in the header
+1. Click **Settings** in the header (admin only)
 2. Configure your SMTP server:
    - **SMTP Host** - e.g., `smtp.gmail.com`
    - **SMTP Port** - e.g., `587` (TLS) or `465` (SSL)
@@ -102,6 +106,22 @@ http://localhost:1532
    - **From Email** - e.g., `Password Manager <your@email.com>`
 3. Enable notifications for add/update/delete events
 4. Click **Send Test Email** to verify settings
+
+### Teams & Collaboration
+
+1. Click **Teams** to access team management
+2. **Create a team** - Give it a name (e.g., "Marketing", "IT")
+3. **Add members** - As team admin, click "Manage Members" → "Add Member"
+4. **Create team folders** - When creating a folder, select a team (admin only)
+5. **Share passwords** - Passwords in team folders are visible to all team members
+
+### Admin Features
+
+The first registered user becomes the admin. Admin capabilities:
+- **Users** page - Create, edit (change role), and delete users
+- **Teams** page - Create teams, add/remove members, delete teams
+- **Settings** page - Configure SMTP email notifications
+- **Team folders** - Assign folders to teams for team visibility
 
 ## 📁 Project Structure
 
@@ -201,8 +221,28 @@ The following environment variables can be configured in `docker-compose.yml`:
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/settings` | Get user settings |
-| PUT | `/api/settings` | Save SMTP settings |
+| PUT | `/api/settings` | Save SMTP settings (admin only) |
 | POST | `/api/settings/test-email` | Send test email |
+
+### Teams
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/teams` | Get user's teams |
+| GET | `/api/teams/all` | Get all teams (admin only) |
+| POST | `/api/teams` | Create a team |
+| POST | `/api/teams/join` | Join a team |
+| DELETE | `/api/teams/:id` | Delete a team |
+| GET | `/api/teams/:id/members` | Get team members |
+| POST | `/api/teams/:id/members` | Add member to team |
+| DELETE | `/api/teams/:id/members/:userId` | Remove member from team |
+
+### Users (Admin)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/auth/users` | Get all users (admin only) |
+| POST | `/api/auth/users` | Create user (admin only) |
+| PUT | `/api/auth/users/:id` | Update user role (admin only) |
+| DELETE | `/api/auth/users/:id` | Delete user (admin only) |
 
 ## 🐳 Docker Commands
 
