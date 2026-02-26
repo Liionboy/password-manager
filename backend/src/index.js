@@ -28,38 +28,7 @@ db.exec(`
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 
-  CREATE TABLE IF NOT EXISTS shared_passwords (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    password_id INTEGER NOT NULL,
-    user_id INTEGER NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (password_id) REFERENCES passwords(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    UNIQUE(password_id, user_id)
-  );
-
-  CREATE TABLE IF NOT EXISTS shared_cards (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    card_id INTEGER NOT NULL,
-    user_id INTEGER NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (card_id) REFERENCES cards(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    UNIQUE(card_id, user_id)
-  );
-`);
-
-try {
-  db.exec('ALTER TABLE users ADD COLUMN role TEXT DEFAULT \'user\'');
-} catch (e) {}
-
-try {
-  db.exec('CREATE TABLE IF NOT EXISTS shared_passwords (id INTEGER PRIMARY KEY AUTOINCREMENT, password_id INTEGER NOT NULL, user_id INTEGER NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (password_id) REFERENCES passwords(id) ON DELETE CASCADE, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, UNIQUE(password_id, user_id))');
-} catch (e) {}
-
-try {
-  db.exec('CREATE TABLE IF NOT EXISTS shared_cards (id INTEGER PRIMARY KEY AUTOINCREMENT, card_id INTEGER NOT NULL, user_id INTEGER NOT NULL, created_at DATETIME DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (card_id) REFERENCES cards(id) ON DELETE CASCADE, FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, UNIQUE(card_id, user_id))');
-} catch (e) {}
+  CREATE TABLE IF NOT EXISTS categories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
     name TEXT NOT NULL,
@@ -126,19 +95,31 @@ try {
     notify_on_delete INTEGER DEFAULT 0,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
-`);
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS folders (
+  CREATE TABLE IF NOT EXISTS shared_passwords (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
+    password_id INTEGER NOT NULL,
     user_id INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    parent_id INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (password_id) REFERENCES passwords(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (parent_id) REFERENCES folders(id) ON DELETE CASCADE
+    UNIQUE(password_id, user_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS shared_cards (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    card_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (card_id) REFERENCES cards(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(card_id, user_id)
   );
 `);
+
+try {
+  db.exec('ALTER TABLE users ADD COLUMN role TEXT DEFAULT \'user\'');
+} catch (e) {}
 
 try {
   db.exec('ALTER TABLE passwords ADD COLUMN folder_id INTEGER REFERENCES folders(id) ON DELETE SET NULL');
