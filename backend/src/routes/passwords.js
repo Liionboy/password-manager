@@ -39,10 +39,10 @@ router.get('/', (req, res) => {
       params.push(parseInt(category_id));
     }
 
-    if (folder_id && folder_id !== '') {
+    if (folder_id && folder_id !== '' && folder_id !== 'null') {
       query += ` AND p.folder_id = ?`;
       params.push(parseInt(folder_id));
-    } else if (folder_id === '') {
+    } else if (!folder_id || folder_id === '' || folder_id === 'null') {
       query += ` AND p.folder_id IS NULL`;
     }
 
