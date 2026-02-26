@@ -172,21 +172,21 @@ function PasswordForm({ token }) {
               </button>
             </div>
             
-            <div style={{ marginTop: '10px', padding: '10px', background: '#f8f9fa', borderRadius: '4px' }}>
-              <p style={{ marginBottom: '10px', fontWeight: '500' }}>Generate Password:</p>
+            <div style={{ marginTop: '15px', padding: '15px', background: 'rgba(17, 24, 39, 0.6)', border: '1px solid #1e293b', borderRadius: '8px' }}>
+              <p style={{ marginBottom: '15px', fontWeight: '500', color: '#00f0ff', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '1px' }}>Generate Password:</p>
               <div className="checkbox-group">
-                <label>
+                <label style={{ color: '#94a3b8' }}>
                   <input
                     type="number"
                     value={genOptions.length}
                     onChange={(e) => setGenOptions({ ...genOptions, length: parseInt(e.target.value) })}
                     min="4"
                     max="64"
-                    style={{ width: '60px' }}
+                    style={{ width: '60px', marginRight: '5px' }}
                   />
                   Length
                 </label>
-                <label>
+                <label style={{ color: '#94a3b8' }}>
                   <input
                     type="checkbox"
                     checked={genOptions.uppercase}
@@ -194,7 +194,7 @@ function PasswordForm({ token }) {
                   />
                   A-Z
                 </label>
-                <label>
+                <label style={{ color: '#94a3b8' }}>
                   <input
                     type="checkbox"
                     checked={genOptions.lowercase}
@@ -202,7 +202,7 @@ function PasswordForm({ token }) {
                   />
                   a-z
                 </label>
-                <label>
+                <label style={{ color: '#94a3b8' }}>
                   <input
                     type="checkbox"
                     checked={genOptions.numbers}
@@ -210,7 +210,7 @@ function PasswordForm({ token }) {
                   />
                   0-9
                 </label>
-                <label>
+                <label style={{ color: '#94a3b8' }}>
                   <input
                     type="checkbox"
                     checked={genOptions.symbols}
@@ -219,7 +219,7 @@ function PasswordForm({ token }) {
                   !@#
                 </label>
               </div>
-              <button type="button" onClick={handleGenerate} style={{ marginTop: '10px' }}>
+              <button type="button" onClick={handleGenerate} className="success" style={{ marginTop: '15px' }}>
                 Generate
               </button>
             </div>

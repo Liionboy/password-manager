@@ -93,12 +93,12 @@ function Settings({ token }) {
       <div className="form-container">
         <h1>Settings</h1>
         
-        {message && <p className="success" style={{ color: '#28a745' }}>{message}</p>}
+        {message && <p className="success">{message}</p>}
         {error && <p className="error">{error}</p>}
 
         <form onSubmit={handleSubmit}>
           <h2>SMTP Email Settings</h2>
-          <p style={{ color: '#666', marginBottom: '20px' }}>
+          <p style={{ color: '#94a3b8', marginBottom: '20px', fontSize: '14px' }}>
             Configure your SMTP server to receive email notifications when passwords or cards are added, updated, or deleted.
           </p>
 
@@ -145,7 +145,7 @@ function Settings({ token }) {
               onChange={handleChange}
               placeholder="Your app password"
             />
-            <small style={{ color: '#666' }}>For Gmail, use an App Password (16 characters)</small>
+            <small style={{ color: '#64748b', fontSize: '12px' }}>For Gmail, use an App Password (16 characters)</small>
           </div>
 
           <div className="form-group">
