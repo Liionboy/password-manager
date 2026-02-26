@@ -25,7 +25,7 @@ function authenticateToken(req, res, next) {
 
 function generateToken(user) {
   return jwt.sign(
-    { id: user.id, username: user.username },
+    { id: user.id, username: user.username, role: user.role || 'user' },
     JWT_SECRET,
     { expiresIn: '24h' }
   );

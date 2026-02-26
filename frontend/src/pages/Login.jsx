@@ -11,17 +11,13 @@ function Login({ setToken, setRole }) {
     e.preventDefault();
     setError('');
 
-    console.log('Login attempt:', { username, password });
-
     try {
       const response = await auth.login(username, password);
-      console.log('Login response:', response.data);
       localStorage.setItem('token', response.data.token);
       localStorage.setItem('role', response.data.role || 'user');
       setToken(response.data.token);
       if (setRole) setRole(response.data.role || 'user');
     } catch (err) {
-      console.error('Login error:', err);
       setError(err.response?.data?.error || 'Login failed');
     }
   };
