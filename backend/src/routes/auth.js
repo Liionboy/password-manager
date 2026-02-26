@@ -470,9 +470,9 @@ router.post('/reset-password', async (req, res) => {
     }
 
     const db = req.db;
-    const user = db.prepare('SELECT * FROM users WHERE username = ? AND reset_token = ? AND reset_expires > datetime("now")').get(username, token);
+    const user = db.prepare('SELECT * FROM users WHERE username = ? AND reset_token = ?').get(username, token);
     
-    if (!user) {
+    if (!user || !user.reset_expires || new Date(user.reset_expires) < new Date()) {
       return res.status(400).json({ error: 'Invalid or expired reset token' });
     }
 
