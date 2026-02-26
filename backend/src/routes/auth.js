@@ -15,8 +15,19 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Username and password are required' });
     }
 
-    if (password.length < 4) {
-      return res.status(400).json({ error: 'Password must be at least 4 characters' });
+    if (password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters' });
+    }
+
+    const hasUpperCase = /[A-Z]/.test(password);
+    const hasLowerCase = /[a-z]/.test(password);
+    const hasNumber = /[0-9]/.test(password);
+    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
+    
+    const strengthScore = [hasUpperCase, hasLowerCase, hasNumber, hasSpecialChar].filter(Boolean).length;
+    
+    if (strengthScore < 3) {
+      return res.status(400).json({ error: 'Password must contain at least 3 of: uppercase, lowercase, numbers, special characters' });
     }
 
     const db = req.db;
@@ -60,11 +71,25 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
+    if (user.locked_until && new Date(user.locked_until) > new Date()) {
+      const remainingMinutes = Math.ceil((new Date(user.locked_until) - new Date()) / 60000);
+      return res.status(423).json({ error: `Account locked. Try again in ${remainingMinutes} minutes` });
+    }
+
     const validPassword = await bcrypt.compare(password, user.password_hash);
 
     if (!validPassword) {
+      const attempts = (user.failed_login_attempts || 0) + 1;
+      if (attempts >= 5) {
+        const lockUntil = new Date(Date.now() + 15 * 60 * 1000);
+        db.prepare('UPDATE users SET failed_login_attempts = ?, locked_until = ? WHERE id = ?').run(attempts, lockUntil.toISOString(), user.id);
+        return res.status(423).json({ error: 'Too many failed attempts. Account locked for 15 minutes' });
+      }
+      db.prepare('UPDATE users SET failed_login_attempts = ? WHERE id = ?').run(attempts, user.id);
       return res.status(401).json({ error: 'Invalid credentials' });
     }
+
+    db.prepare('UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = ?').run(user.id);
 
     if (user.mfa_enabled && user.mfa_secret) {
       return res.json({ 
