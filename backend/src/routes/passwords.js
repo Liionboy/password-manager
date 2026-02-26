@@ -86,13 +86,15 @@ router.post('/', (req, res) => {
     }
 
     const encryptedPassword = encrypt(password);
+    const folder = folder_id ? db.prepare('SELECT name FROM folders WHERE id = ?').get(folder_id) : null;
+    const folderInfo = folder ? ` in folder "${folder.name}"` : '';
     
     const result = db.prepare(`
       INSERT INTO passwords (user_id, title, username, encrypted_password, url, folder_id, category_id, notes, team_id)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(userId, title, username || null, encryptedPassword, url || null, folder_id || null, category_id || null, notes || null, teamId);
 
-    sendNotification(db, userId, 'New Password Added', `A new password "${title}" was added to your vault.`, 'add');
+    sendNotification(db, userId, 'New Password Added', `A new password "${title}" was added to your vault${folderInfo}.`, 'add');
 
     res.status(201).json({ 
       message: 'Password saved successfully',
@@ -142,7 +144,11 @@ router.put('/:id', (req, res) => {
       userId
     );
 
-    sendNotification(db, userId, 'Password Updated', `The password "${title || existing.title}" was updated.`, 'update');
+    const newFolderId = folder_id !== undefined ? folder_id : existing.folder_id;
+    const folder = newFolderId ? db.prepare('SELECT name FROM folders WHERE id = ?').get(newFolderId) : null;
+    const folderInfo = folder ? ` in folder "${folder.name}"` : '';
+
+    sendNotification(db, userId, 'Password Updated', `The password "${title || existing.title}" was updated${folderInfo}.`, 'update');
 
     res.json({ message: 'Password updated successfully' });
   } catch (error) {
@@ -157,13 +163,16 @@ router.delete('/:id', (req, res) => {
     const userId = req.user.id;
     const { id } = req.params;
 
+    const existing = db.prepare('SELECT p.*, f.name as folder_name FROM passwords p LEFT JOIN folders f ON p.folder_id = f.id WHERE p.id = ? AND p.user_id = ?').get(id, userId);
+
     const result = db.prepare('DELETE FROM passwords WHERE id = ? AND user_id = ?').run(id, userId);
 
     if (result.changes === 0) {
       return res.status(404).json({ error: 'Password not found' });
     }
 
-    sendNotification(db, userId, 'Password Deleted', `A password was deleted from your vault.`, 'delete');
+    const folderInfo = existing?.folder_name ? ` from folder "${existing.folder_name}"` : '';
+    sendNotification(db, userId, 'Password Deleted', `A password was deleted from your vault${folderInfo}.`, 'delete');
 
     res.json({ message: 'Password deleted successfully' });
   } catch (error) {
