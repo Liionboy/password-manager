@@ -22,9 +22,9 @@ router.get('/', (req, res) => {
       LEFT JOIN folders f ON c.folder_id = f.id
       LEFT JOIN users u ON c.user_id = u.id
       LEFT JOIN teams t ON c.team_id = t.id
-      WHERE c.user_id = ? 
+      WHERE (c.user_id = ? 
          OR c.id IN (SELECT card_id FROM shared_cards WHERE user_id = ?)
-         OR c.team_id IN (SELECT team_id FROM team_members WHERE user_id = ?)
+         OR c.team_id IN (SELECT team_id FROM team_members WHERE user_id = ?))
     `;
     const params = [userId, userId, userId, userId];
 

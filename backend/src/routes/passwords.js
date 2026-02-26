@@ -25,9 +25,9 @@ router.get('/', (req, res) => {
       LEFT JOIN folders f ON p.folder_id = f.id
       LEFT JOIN users u ON p.user_id = u.id
       LEFT JOIN teams t ON p.team_id = t.id
-      WHERE p.user_id = ? 
-         OR p.id IN (SELECT password_id FROM shared_passwords WHERE user_id = ?)
-         OR p.team_id IN (SELECT team_id FROM team_members WHERE user_id = ?)
+      WHERE (p.user_id = ? 
+          OR p.id IN (SELECT password_id FROM shared_passwords WHERE user_id = ?)
+          OR p.team_id IN (SELECT team_id FROM team_members WHERE user_id = ?))
     `;
     const params = [userId, userId, userId, userId];
 
@@ -44,29 +44,16 @@ router.get('/', (req, res) => {
 
     const folderId = folder_id;
     
-    console.log('folderId value:', folderId, 'Boolean:', Boolean(folderId));
-    
     if (folderId && folderId !== '' && folderId !== 'null' && folderId !== 'undefined') {
       query += ` AND p.folder_id = ?`;
       params.push(parseInt(folderId));
-      console.log('Showing passwords in folder:', parseInt(folderId));
     } else {
-      // Debug: show all passwords and their folder_ids
-      const allPasswords = db.prepare('SELECT id, user_id, folder_id, title FROM passwords').all();
-      console.log('All passwords in DB:', allPasswords);
-      
       query += ` AND p.folder_id IS NULL`;
-      console.log('Showing passwords with NO folder');
     }
 
     query += ` ORDER BY is_shared ASC, p.created_at DESC`;
 
-    console.log('SQL query:', query);
-    console.log('Params:', params);
-    
     const passwords = db.prepare(query).all(...params);
-    console.log('Total passwords returned:', passwords.length);
-    console.log('Password folder_ids:', passwords.map(p => p.folder_id));
 
     const decrypted = passwords.map(p => ({
       ...p,
