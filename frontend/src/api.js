@@ -10,7 +10,10 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem('token');
+  let token = localStorage.getItem('token');
+  if (!token) {
+    token = localStorage.getItem('tempToken');
+  }
   if (token) {
     config.headers.Authorization = `Bearer ${token}`;
   }
@@ -26,7 +29,11 @@ export const auth = {
   updateUser: (id, data) => api.put(`/auth/users/${id}`, data),
   deleteUser: (id) => api.delete(`/auth/users/${id}`),
   getProfile: () => api.get('/auth/me'),
-  updateProfile: (data) => api.put('/auth/profile', data)
+  updateProfile: (data) => api.put('/auth/profile', data),
+  mfaSetup: () => api.post('/auth/mfa/setup'),
+  mfaEnable: (code) => api.post('/auth/mfa/enable', { code }),
+  mfaDisable: (code) => api.post('/auth/mfa/disable', { code }),
+  mfaVerifyTemp: (code) => api.post('/auth/mfa/verify-temp', { code })
 };
 
 export const passwords = {

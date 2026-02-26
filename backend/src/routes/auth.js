@@ -1,6 +1,6 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const { authenticateToken, generateToken } = require('../middleware/auth');
+const { authenticateToken, generateToken, generateTempToken } = require('../middleware/auth');
 
 const router = express.Router();
 
@@ -64,6 +64,13 @@ router.post('/login', async (req, res) => {
 
     if (!validPassword) {
       return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    if (user.mfa_enabled && user.mfa_secret) {
+      return res.json({ 
+        mfaRequired: true, 
+        tempToken: generateTempToken(user) 
+      });
     }
 
     const token = generateToken(user);
@@ -211,10 +218,183 @@ router.put('/profile', authenticateToken, (req, res) => {
 router.get('/me', authenticateToken, (req, res) => {
   try {
     const db = req.db;
-    const user = db.prepare('SELECT id, username, role, email FROM users WHERE id = ?').get(req.user.id);
+    const user = db.prepare('SELECT id, username, role, email, mfa_enabled FROM users WHERE id = ?').get(req.user.id);
     res.json(user);
   } catch (error) {
     console.error('Get profile error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/mfa/setup', authenticateToken, (req, res) => {
+  try {
+    const db = req.db;
+    const userId = req.user.id;
+    const user = db.prepare('SELECT username FROM users WHERE id = ?').get(userId);
+
+    const speakeasy = require('speakeasy');
+    const QRCode = require('qrcode');
+
+    const secret = speakeasy.generateSecret({
+      name: `PasswordManager (${user.username})`,
+      issuer: 'PasswordManager'
+    });
+
+    db.prepare('UPDATE users SET mfa_secret = ? WHERE id = ?').run(secret.base32, userId);
+
+    QRCode.toDataURL(secret.otpauth_url, (err, data_url) => {
+      if (err) {
+        return res.status(500).json({ error: 'Failed to generate QR code' });
+      }
+      res.json({
+        secret: secret.base32,
+        qrCode: data_url
+      });
+    });
+  } catch (error) {
+    console.error('MFA setup error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/mfa/enable', authenticateToken, (req, res) => {
+  try {
+    const db = req.db;
+    const userId = req.user.id;
+    const { code } = req.body;
+
+    const user = db.prepare('SELECT mfa_secret FROM users WHERE id = ?').get(userId);
+    
+    if (!user || !user.mfa_secret) {
+      return res.status(400).json({ error: 'MFA not set up' });
+    }
+
+    const speakeasy = require('speakeasy');
+    const verified = speakeasy.totp.verify({
+      secret: user.mfa_secret,
+      encoding: 'base32',
+      token: code,
+      window: 1
+    });
+
+    if (!verified) {
+      return res.status(400).json({ error: 'Invalid verification code' });
+    }
+
+    db.prepare('UPDATE users SET mfa_enabled = 1 WHERE id = ?').run(userId);
+    res.json({ message: 'MFA enabled successfully' });
+  } catch (error) {
+    console.error('MFA enable error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/mfa/disable', authenticateToken, (req, res) => {
+  try {
+    const db = req.db;
+    const userId = req.user.id;
+    const { code } = req.body;
+
+    const user = db.prepare('SELECT mfa_secret, mfa_enabled FROM users WHERE id = ?').get(userId);
+    
+    if (!user || !user.mfa_enabled) {
+      return res.status(400).json({ error: 'MFA not enabled' });
+    }
+
+    const speakeasy = require('speakeasy');
+    const verified = speakeasy.totp.verify({
+      secret: user.mfa_secret,
+      encoding: 'base32',
+      token: code,
+      window: 1
+    });
+
+    if (!verified) {
+      return res.status(400).json({ error: 'Invalid verification code' });
+    }
+
+    db.prepare('UPDATE users SET mfa_enabled = 0, mfa_secret = NULL WHERE id = ?').run(userId);
+    res.json({ message: 'MFA disabled successfully' });
+  } catch (error) {
+    console.error('MFA disable error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/mfa/verify', (req, res) => {
+  try {
+    const db = req.db;
+    const { username, password, mfa_code } = req.body;
+
+    const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username);
+    
+    if (!user) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    const bcrypt = require('bcryptjs');
+    const validPassword = bcrypt.compareSync(password, user.password_hash);
+    
+    if (!validPassword) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+
+    if (!user.mfa_enabled || !user.mfa_secret) {
+      return res.json({ mfaRequired: false });
+    }
+
+    const speakeasy = require('speakeasy');
+    const verified = speakeasy.totp.verify({
+      secret: user.mfa_secret,
+      encoding: 'base32',
+      token: mfa_code,
+      window: 1
+    });
+
+    if (!verified) {
+      return res.status(400).json({ error: 'Invalid MFA code', mfaRequired: true });
+    }
+
+    const token = generateToken(user);
+    res.json({ token, role: user.role, username: user.username });
+  } catch (error) {
+    console.error('MFA verify error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/mfa/verify-temp', authenticateToken, (req, res) => {
+  try {
+    if (!req.user.mfaPending) {
+      return res.status(400).json({ error: 'No MFA verification pending' });
+    }
+
+    const db = req.db;
+    const userId = req.user.id;
+    const { code } = req.body;
+
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(userId);
+    
+    if (!user || !user.mfa_secret) {
+      return res.status(400).json({ error: 'MFA not set up' });
+    }
+
+    const speakeasy = require('speakeasy');
+    const verified = speakeasy.totp.verify({
+      secret: user.mfa_secret,
+      encoding: 'base32',
+      token: code,
+      window: 1
+    });
+
+    if (!verified) {
+      return res.status(400).json({ error: 'Invalid MFA code' });
+    }
+
+    const token = generateToken(user);
+    res.json({ token, role: user.role, username: user.username, message: 'Login successful' });
+  } catch (error) {
+    console.error('MFA verify temp error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

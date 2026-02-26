@@ -27,6 +27,8 @@ db.exec(`
     password_hash TEXT NOT NULL,
     role TEXT DEFAULT 'user' CHECK(role IN ('admin', 'user')),
     email TEXT,
+    mfa_secret TEXT,
+    mfa_enabled INTEGER DEFAULT 0,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP
   );
 

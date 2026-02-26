@@ -17,9 +17,9 @@ function Dashboard({ token, setToken, role = 'user' }) {
   const [showFolderModal, setShowFolderModal] = useState(false);
   const [showEditFolderModal, setShowEditFolderModal] = useState(false);
   const [showProfileModal, setShowProfileModal] = useState(false);
-  const [newFolder, setNewFolder] = useState({ name: '', parent_id: '', team_id: '' });
-  const [editFolder, setEditFolder] = useState({ id: '', name: '', parent_id: '', team_id: '' });
-  const [profileData, setProfileData] = useState({ email: '' });
+  const [profileData, setProfileData] = useState({ email: '', mfa_enabled: false });
+  const [mfaSetupData, setMfaSetupData] = useState(null);
+  const [mfaCode, setMfaCode] = useState('');
   const [importData, setImportData] = useState('');
   const [expandedFolders, setExpandedFolders] = useState({});
   const navigate = useNavigate();
@@ -272,7 +272,7 @@ function Dashboard({ token, setToken, role = 'user' }) {
   const loadProfile = async () => {
     try {
       const response = await auth.getProfile();
-      setProfileData({ email: response.data.email || '' });
+      setProfileData({ email: response.data.email || '', mfa_enabled: response.data.mfa_enabled || false });
     } catch (err) {
       console.error('Error loading profile:', err);
     }
@@ -290,6 +290,39 @@ function Dashboard({ token, setToken, role = 'user' }) {
       setShowProfileModal(false);
     } catch (err) {
       alert('Error updating profile: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
+  const handleMfaSetup = async () => {
+    try {
+      const response = await auth.mfaSetup();
+      setMfaSetupData(response.data);
+    } catch (err) {
+      alert('Error setting up MFA: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
+  const handleMfaEnable = async () => {
+    try {
+      await auth.mfaEnable(mfaCode);
+      alert('MFA enabled successfully!');
+      setMfaSetupData(null);
+      setMfaCode('');
+      loadProfile();
+    } catch (err) {
+      alert('Error enabling MFA: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
+  const handleMfaDisable = async () => {
+    if (!window.confirm('Are you sure you want to disable MFA?')) return;
+    try {
+      await auth.mfaDisable(mfaCode);
+      alert('MFA disabled successfully!');
+      setMfaCode('');
+      loadProfile();
+    } catch (err) {
+      alert('Error disabling MFA: ' + (err.response?.data?.error || err.message));
     }
   };
 
@@ -673,9 +706,61 @@ function Dashboard({ token, setToken, role = 'user' }) {
                 Receive email notifications for password changes at this address
               </small>
             </div>
+
+            <div style={{ marginTop: '20px', padding: '15px', background: '#1a1a2e', borderRadius: '8px' }}>
+              <h3 style={{ marginTop: 0 }}>Two-Factor Authentication</h3>
+              
+              {!mfaSetupData && !profileData.mfa_enabled && (
+                <button onClick={handleMfaSetup} className="success">Enable 2FA</button>
+              )}
+
+              {mfaSetupData && (
+                <>
+                  <p style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '10px' }}>
+                    Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
+                  </p>
+                  <img src={mfaSetupData.qrCode} alt="QR Code" style={{ maxWidth: '200px', display: 'block', margin: '10px auto' }} />
+                  <p style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '10px' }}>
+                    Or enter this secret manually: <strong>{mfaSetupData.secret}</strong>
+                  </p>
+                  <div className="form-group">
+                    <label>Enter verification code</label>
+                    <input
+                      type="text"
+                      value={mfaCode}
+                      onChange={(e) => setMfaCode(e.target.value)}
+                      placeholder="123456"
+                      maxLength={6}
+                    />
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px' }}>
+                    <button onClick={handleMfaEnable} className="success">Verify & Enable</button>
+                    <button onClick={() => setMfaSetupData(null)} className="secondary">Cancel</button>
+                  </div>
+                </>
+              )}
+
+              {profileData.mfa_enabled && (
+                <>
+                  <p style={{ color: '#00f0ff', fontSize: '14px' }}>✓ Two-Factor Authentication is enabled</p>
+                  <div className="form-group">
+                    <label>Enter code to disable</label>
+                    <input
+                      type="text"
+                      value={mfaCode}
+                      onChange={(e) => setMfaCode(e.target.value)}
+                      placeholder="123456"
+                      maxLength={6}
+                    />
+                  </div>
+                  <button onClick={handleMfaDisable} className="danger">Disable 2FA</button>
+                </>
+              )}
+            </div>
+
             <div className="form-actions">
               <button onClick={handleUpdateProfile} className="success">Save</button>
-              <button onClick={() => setShowProfileModal(false)} className="secondary">Cancel</button>
+              <button onClick={() => { setShowProfileModal(false); setMfaSetupData(null); setMfaCode(''); }} className="secondary">Cancel</button>
             </div>
           </div>
         </div>

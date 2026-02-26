@@ -31,4 +31,12 @@ function generateToken(user) {
   );
 }
 
-module.exports = { authenticateToken, generateToken, JWT_SECRET };
+function generateTempToken(user) {
+  return jwt.sign(
+    { id: user.id, username: user.username, role: user.role || 'user', mfaPending: true },
+    JWT_SECRET,
+    { expiresIn: '5m' }
+  );
+}
+
+module.exports = { authenticateToken, generateToken, generateTempToken, JWT_SECRET };
