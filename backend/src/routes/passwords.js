@@ -39,9 +39,11 @@ router.get('/', (req, res) => {
       params.push(parseInt(category_id));
     }
 
-    if (folder_id) {
+    if (folder_id && folder_id !== '') {
       query += ` AND p.folder_id = ?`;
       params.push(parseInt(folder_id));
+    } else if (folder_id === '') {
+      query += ` AND p.folder_id IS NULL`;
     }
 
     query += ` ORDER BY is_shared ASC, p.created_at DESC`;

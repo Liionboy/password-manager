@@ -47,7 +47,7 @@ export const categories = {
 };
 
 export const cards = {
-  getAll: (search, categoryId) => api.get('/cards', { params: { search, category_id: categoryId } }),
+  getAll: (search, categoryId, folderId) => api.get('/cards', { params: { search, category_id: categoryId, folder_id: folderId } }),
   create: (data) => api.post('/cards', data),
   update: (id, data) => api.put(`/cards/${id}`, data),
   delete: (id) => api.delete(`/cards/${id}`)

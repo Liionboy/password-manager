@@ -48,7 +48,7 @@ function Dashboard({ token, setToken, role = 'user' }) {
 
   const loadCards = async () => {
     try {
-      const response = await cards.getAll(search, selectedCategory || null);
+      const response = await cards.getAll(search, selectedCategory || null, selectedFolder || null);
       setCardList(response.data);
     } catch (err) {
       console.error('Error loading cards:', err);

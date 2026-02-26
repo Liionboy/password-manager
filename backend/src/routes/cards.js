@@ -11,7 +11,7 @@ router.get('/', (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;
-    const { search, category_id } = req.query;
+    const { search, category_id, folder_id } = req.query;
 
     let query = `
       SELECT c.*, cat.name as category_name, f.name as folder_name, t.name as team_name,
@@ -37,6 +37,13 @@ router.get('/', (req, res) => {
     if (category_id) {
       query += ` AND c.category_id = ?`;
       params.push(parseInt(category_id));
+    }
+
+    if (folder_id && folder_id !== '') {
+      query += ` AND c.folder_id = ?`;
+      params.push(parseInt(folder_id));
+    } else if (folder_id === '') {
+      query += ` AND c.folder_id IS NULL`;
     }
 
     query += ` ORDER BY is_shared ASC, c.created_at DESC`;
