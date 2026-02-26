@@ -6,7 +6,8 @@ const router = express.Router();
 
 router.post('/register', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const body = req.body || {};
+    const { username, password } = body;
 
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password are required' });
@@ -41,7 +42,8 @@ router.post('/register', async (req, res) => {
 
 router.post('/login', async (req, res) => {
   try {
-    const { username, password } = req.body;
+    const body = req.body || {};
+    const { username, password } = body;
 
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password are required' });
