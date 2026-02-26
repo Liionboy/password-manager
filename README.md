@@ -2,13 +2,14 @@
 
 A secure, self-hosted password manager application built with React, Node.js, and SQLite - all containerized with Docker.
 
-![Version](https://img.shields.io/badge/version-1.2.0-blue)
+![Version](https://img.shields.io/badge/version-1.4.0-blue)
 ![Docker](https://img.shields.io/badge/Docker-ready-blueviolet)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
 ## ✨ Features
 
 - **Secure Authentication** - User registration and login with JWT tokens
+- **Two-Factor Authentication (TOTP)** - Add an extra layer of security with authenticator apps
 - **AES-256 Encryption** - All passwords and card numbers are encrypted at rest
 - **Password Generator** - Customizable password generator (length, uppercase, lowercase, numbers, symbols)
 - **Categories** - Organize your passwords and cards with custom categories
@@ -18,6 +19,7 @@ A secure, self-hosted password manager application built with React, Node.js, an
 - **Copy to Clipboard** - One-click copy functionality
 - **Bank Cards** - Store and manage your credit/debit cards with auto-brand detection
 - **Email Notifications** - Get notified via email when passwords or cards are added, updated, or deleted (SMTP)
+- **Global SMTP** - Admin can configure SMTP for all users
 - **Teams** - Create teams and share passwords/folders with team members
 - **Role-Based Access** - Admin and user roles with different permissions
 - **Admin Panel** - Admin can manage users, teams, and settings
@@ -123,6 +125,19 @@ The first registered user becomes the admin. Admin capabilities:
 - **Settings** page - Configure SMTP email notifications
 - **Team folders** - Assign folders to teams for team visibility
 
+### Two-Factor Authentication (2FA)
+
+1. Click **Profile** in the header
+2. Click **Enable 2FA**
+3. Scan the QR code with your authenticator app (Google Authenticator, Authy, Microsoft Authenticator, etc.)
+4. Enter the 6-digit code from your app to verify and enable 2FA
+
+**At login:**
+1. Enter username and password
+2. Enter the 6-digit code from your authenticator app
+
+You can disable 2FA anytime from the Profile page.
+
 ## 📁 Project Structure
 
 ```
@@ -190,6 +205,12 @@ The following environment variables can be configured in `docker-compose.yml`:
 | POST | `/api/auth/register` | Register new user |
 | POST | `/api/auth/login` | Login user |
 | GET | `/api/auth/verify` | Verify token |
+| GET | `/api/auth/me` | Get current user profile |
+| PUT | `/api/auth/profile` | Update user profile (email) |
+| POST | `/api/auth/mfa/setup` | Generate MFA QR code |
+| POST | `/api/auth/mfa/enable` | Enable MFA with verification code |
+| POST | `/api/auth/mfa/disable` | Disable MFA with verification code |
+| POST | `/api/auth/mfa/verify-temp` | Verify MFA code after login |
 
 ### Passwords
 | Method | Endpoint | Description |
