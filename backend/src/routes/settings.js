@@ -18,6 +18,23 @@ router.get('/', (req, res) => {
       settings = db.prepare('SELECT * FROM settings WHERE user_id = ?').get(userId);
     }
 
+    if (req.user.role === 'admin') {
+      const globalSettings = db.prepare('SELECT * FROM settings WHERE user_id = 0').get();
+      if (globalSettings) {
+        settings = { ...settings, is_global: globalSettings.is_global };
+        if (globalSettings.smtp_host && !settings.smtp_host) {
+          settings.smtp_host = globalSettings.smtp_host;
+          settings.smtp_port = globalSettings.smtp_port;
+          settings.smtp_user = globalSettings.smtp_user;
+          settings.smtp_from = globalSettings.smtp_from;
+          settings.notify_on_add = globalSettings.notify_on_add;
+          settings.notify_on_update = globalSettings.notify_on_update;
+          settings.notify_on_delete = globalSettings.notify_on_delete;
+          settings.is_global = true;
+        }
+      }
+    }
+
     if (settings.smtp_password) {
       settings.smtp_password = '***hidden***';
     }
@@ -33,7 +50,31 @@ router.put('/', (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;
-    const { smtp_host, smtp_port, smtp_user, smtp_password, smtp_from, notify_on_add, notify_on_update, notify_on_delete } = req.body;
+    const { smtp_host, smtp_port, smtp_user, smtp_password, smtp_from, notify_on_add, notify_on_update, notify_on_delete, is_global } = req.body;
+
+    if (req.user.role !== 'admin' && is_global) {
+      return res.status(403).json({ error: 'Only admin can save global settings' });
+    }
+
+    if (is_global) {
+      const globalSettings = db.prepare('SELECT * FROM settings WHERE user_id = 0').get();
+      if (globalSettings) {
+        let updateSql = `UPDATE settings SET 
+          smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_from = ?`;
+        let params = [smtp_host, smtp_port, smtp_user, smtp_from];
+
+        if (smtp_password && smtp_password !== '***hidden***') {
+          updateSql += ', smtp_password = ?';
+          params.push(smtp_password);
+        }
+
+        updateSql += ' WHERE user_id = 0';
+        db.prepare(updateSql).run(...params);
+      } else {
+        db.prepare(`INSERT INTO settings (user_id, smtp_host, smtp_port, smtp_user, smtp_password, smtp_from, is_global)
+          VALUES (0, ?, ?, ?, ?, ?, 1)`).run(smtp_host, smtp_port, smtp_user, smtp_password, smtp_from);
+      }
+    }
 
     const existing = db.prepare('SELECT * FROM settings WHERE user_id = ?').get(userId);
 
@@ -139,10 +180,15 @@ router.post('/test-email', async (req, res) => {
 
 const sendNotification = async (db, userId, subject, body, actionType) => {
   try {
-    const settings = db.prepare('SELECT * FROM settings WHERE user_id = ?').get(userId);
+    let settings = db.prepare('SELECT * FROM settings WHERE user_id = ?').get(userId);
     
     if (!settings || !settings.smtp_host) {
-      return;
+      const globalSettings = db.prepare('SELECT * FROM settings WHERE user_id = 0').get();
+      if (globalSettings && globalSettings.smtp_host) {
+        settings = globalSettings;
+      } else {
+        return;
+      }
     }
 
     if (actionType === 'add' && !settings.notify_on_add) return;

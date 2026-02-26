@@ -12,11 +12,13 @@ function Settings({ token }) {
     smtp_from: '',
     notify_on_add: false,
     notify_on_update: false,
-    notify_on_delete: false
+    notify_on_delete: false,
+    is_global: false
   });
   const [testing, setTesting] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [role, setRole] = useState(localStorage.getItem('role'));
 
   useEffect(() => {
     loadSettings();
@@ -34,7 +36,8 @@ function Settings({ token }) {
         smtp_from: data.smtp_from || '',
         notify_on_add: Boolean(data.notify_on_add),
         notify_on_update: Boolean(data.notify_on_update),
-        notify_on_delete: Boolean(data.notify_on_delete)
+        notify_on_delete: Boolean(data.notify_on_delete),
+        is_global: data.is_global || false
       });
     } catch (err) {
       console.error('Error loading settings:', err);
@@ -158,6 +161,23 @@ function Settings({ token }) {
               placeholder="Password Manager <your@email.com>"
             />
           </div>
+
+          {role === 'admin' && (
+            <div className="form-group">
+              <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer' }}>
+                <input
+                  type="checkbox"
+                  name="is_global"
+                  checked={formData.is_global}
+                  onChange={handleChange}
+                />
+                <strong>Global SMTP</strong> - Use for all users (recommended)
+              </label>
+              <small style={{ color: '#64748b', fontSize: '12px', display: 'block', marginTop: '5px' }}>
+                When enabled, this SMTP configuration will be used for email notifications for all users
+              </small>
+            </div>
+          )}
 
           <div className="form-group">
             <button type="button" onClick={handleTestEmail} className="secondary" disabled={testing}>

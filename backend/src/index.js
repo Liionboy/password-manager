@@ -94,8 +94,11 @@ db.exec(`
     notify_on_add INTEGER DEFAULT 0,
     notify_on_update INTEGER DEFAULT 0,
     notify_on_delete INTEGER DEFAULT 0,
+    is_global INTEGER DEFAULT 0,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
+
+  db.exec('INSERT OR IGNORE INTO settings (user_id, is_global) VALUES (0, 1)');
 
   CREATE TABLE IF NOT EXISTS shared_passwords (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
