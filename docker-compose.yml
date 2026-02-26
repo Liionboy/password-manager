@@ -6,15 +6,19 @@ services:
     container_name: password-manager-backend
     ports:
       - "5000:5000"
-    volumes:
-      - db-data:/app/data
     environment:
       - NODE_ENV=production
       - JWT_SECRET=__PUNE_AICI_JWT_SECRET__
       - ENCRYPTION_KEY=__PUNE_AICI_ENCRYPTION_KEY__
+      - DB_HOST=postgres
+      - DB_USER=postgres
+      - DB_PASSWORD=postgres
+      - DB_NAME=passwordmanager
     restart: unless-stopped
     networks:
       - password-manager-network
+    depends_on:
+      - postgres
 
   frontend:
     build:
@@ -29,8 +33,21 @@ services:
     networks:
       - password-manager-network
 
+  postgres:
+    image: postgres:15-alpine
+    container_name: password-manager-db
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=passwordmanager
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - password-manager-network
+
 volumes:
-  db-data:
+  pgdata:
 
 networks:
   password-manager-network:

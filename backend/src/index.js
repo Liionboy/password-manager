@@ -1,10 +1,8 @@
 const express = require('express');
 const cors = require('cors');
-const Database = require('better-sqlite3');
-const path = require('path');
-const fs = require('fs');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
+const Database = require('./db');
 const authRoutes = require('./routes/auth');
 const passwordRoutes = require('./routes/passwords');
 const cardRoutes = require('./routes/cards');
@@ -18,152 +16,312 @@ const PORT = process.env.PORT || 5000;
 app.set('trust proxy', 1);
 app.use(helmet());
 
-// Rate limiting disabled for development
+const db = new Database({
+  host: process.env.DB_HOST || 'localhost',
+  user: process.env.DB_USER || 'postgres',
+  password: process.env.DB_PASSWORD || 'postgres',
+  database: process.env.DB_NAME || 'passwordmanager',
+  port: 5432
+});
 
-const dataDir = path.join(__dirname, 'data');
-if (!fs.existsSync(dataDir)) {
-  fs.mkdirSync(dataDir, { recursive: true });
-}
+const initDB = async () => {
+  try {
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(255) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        role VARCHAR(50) DEFAULT 'user' CHECK(role IN ('admin', 'user')),
+        email VARCHAR(255),
+        mfa_secret TEXT,
+        mfa_enabled INTEGER DEFAULT 0,
+        reset_token TEXT,
+        reset_expires TIMESTAMP,
+        failed_login_attempts INTEGER DEFAULT 0,
+        locked_until TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
 
-const db = new Database(path.join(dataDir, 'passwords.db'));
+      CREATE TABLE IF NOT EXISTS teams (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
 
-db.exec(`
-  CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    username TEXT UNIQUE NOT NULL,
-    password_hash TEXT NOT NULL,
-    role TEXT DEFAULT 'user' CHECK(role IN ('admin', 'user')),
-    email TEXT,
-    mfa_secret TEXT,
-    mfa_enabled INTEGER DEFAULT 0,
-    reset_token TEXT,
-    reset_expires DATETIME,
-    failed_login_attempts INTEGER DEFAULT 0,
-    locked_until DATETIME,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
+      CREATE TABLE IF NOT EXISTS team_members (
+        id SERIAL PRIMARY KEY,
+        team_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        role VARCHAR(50) DEFAULT 'member' CHECK(role IN ('owner', 'admin', 'member')),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE(team_id, user_id)
+      );
 
-  CREATE TABLE IF NOT EXISTS teams (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-  );
+      CREATE TABLE IF NOT EXISTS passwords (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        username VARCHAR(255),
+        encrypted_password TEXT NOT NULL,
+        url TEXT,
+        notes TEXT,
+        category_id INTEGER,
+        folder_id INTEGER,
+        team_id INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL,
+        FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+      );
 
-  CREATE TABLE IF NOT EXISTS team_members (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    team_id INTEGER NOT NULL,
-    user_id INTEGER NOT NULL,
-    role TEXT DEFAULT 'member' CHECK(role IN ('owner', 'admin', 'member')),
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    UNIQUE(team_id, user_id)
-  );
+      CREATE TABLE IF NOT EXISTS cards (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        cardholder_name VARCHAR(255),
+        encrypted_card_number TEXT NOT NULL,
+        expiry_month VARCHAR(10),
+        expiry_year VARCHAR(10),
+        cvv TEXT,
+        brand VARCHAR(50),
+        category_id INTEGER,
+        folder_id INTEGER,
+        team_id INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL,
+        FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+      );
 
-  CREATE TABLE IF NOT EXISTS passwords (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    title TEXT NOT NULL,
-    username TEXT,
-    encrypted_password TEXT NOT NULL,
-    url TEXT,
-    notes TEXT,
-    category_id INTEGER,
-    folder_id INTEGER,
-    team_id INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL,
-    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
-  );
+      CREATE TABLE IF NOT EXISTS categories (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
 
-  CREATE TABLE IF NOT EXISTS cards (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    title TEXT NOT NULL,
-    cardholder_name TEXT,
-    encrypted_card_number TEXT NOT NULL,
-    expiry_month TEXT,
-    expiry_year TEXT,
-    cvv TEXT,
-    brand TEXT,
-    category_id INTEGER,
-    folder_id INTEGER,
-    team_id INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL,
-    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
-  );
+      CREATE TABLE IF NOT EXISTS folders (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        parent_id INTEGER,
+        team_id INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (parent_id) REFERENCES folders(id) ON DELETE CASCADE,
+        FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+      );
 
-  CREATE TABLE IF NOT EXISTS categories (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-  );
+      CREATE TABLE IF NOT EXISTS settings (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER,
+        smtp_host VARCHAR(255),
+        smtp_port INTEGER,
+        smtp_user VARCHAR(255),
+        smtp_password VARCHAR(255),
+        smtp_from VARCHAR(255),
+        notify_on_add INTEGER DEFAULT 0,
+        notify_on_update INTEGER DEFAULT 0,
+        notify_on_delete INTEGER DEFAULT 0,
+        is_global INTEGER DEFAULT 0,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
 
-  CREATE TABLE IF NOT EXISTS folders (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    parent_id INTEGER,
-    team_id INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (parent_id) REFERENCES folders(id) ON DELETE CASCADE,
-    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
-  );
+      CREATE TABLE IF NOT EXISTS shared_passwords (
+        id SERIAL PRIMARY KEY,
+        password_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        FOREIGN KEY (password_id) REFERENCES passwords(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE(password_id, user_id)
+      );
 
-  CREATE TABLE IF NOT EXISTS settings (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER,
-    smtp_host TEXT,
-    smtp_port INTEGER,
-    smtp_user TEXT,
-    smtp_password TEXT,
-    smtp_from TEXT,
-    notify_on_add INTEGER DEFAULT 0,
-    notify_on_update INTEGER DEFAULT 0,
-    notify_on_delete INTEGER DEFAULT 0,
-    is_global INTEGER DEFAULT 0,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-  );
+      CREATE TABLE IF NOT EXISTS shared_cards (
+        id SERIAL PRIMARY KEY,
+        card_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        FOREIGN KEY (card_id) REFERENCES cards(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE(card_id, user_id)
+      );
+    `);
 
-  CREATE TABLE IF NOT EXISTS shared_passwords (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    password_id INTEGER NOT NULL,
-    user_id INTEGER NOT NULL,
-    FOREIGN KEY (password_id) REFERENCES passwords(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    UNIQUE(password_id, user_id)
-  );
+    await db.query(`
+      INSERT INTO settings (user_id, is_global) 
+      VALUES (NULL, 1) 
+      ON CONFLICT DO NOTHING
+    `);
 
-  CREATE TABLE IF NOT EXISTS shared_cards (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    card_id INTEGER NOT NULL,
-    user_id INTEGER NOT NULL,
-    FOREIGN KEY (card_id) REFERENCES cards(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    UNIQUE(card_id, user_id)
-  );
-`);
+    const bcrypt = require('bcryptjs');
+    const userCount = await db.query('SELECT COUNT(*) as count FROM users');
+    
+    if (parseInt(userCount.rows[0].count) === 0) {
+      const passwordHash = bcrypt.hashSync('admin', 10);
+      await db.query(
+        'INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3)',
+        ['admin', passwordHash, 'admin']
+      );
+      console.log('Default admin user created: admin / admin');
+    }
 
-try {
-  db.exec('INSERT OR IGNORE INTO settings (user_id, is_global) VALUES (NULL, 1)');
-} catch (e) {}
+    console.log('Database initialized successfully');
+  } catch (error) {
+    console.error('Database initialization error:', error);
+  }
+};
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        username VARCHAR(255) UNIQUE NOT NULL,
+        password_hash VARCHAR(255) NOT NULL,
+        role VARCHAR(50) DEFAULT 'user' CHECK(role IN ('admin', 'user')),
+        email VARCHAR(255),
+        mfa_secret TEXT,
+        mfa_enabled INTEGER DEFAULT 0,
+        reset_token TEXT,
+        reset_expires TIMESTAMP,
+        failed_login_attempts INTEGER DEFAULT 0,
+        locked_until TIMESTAMP,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
 
-const bcrypt = require('bcryptjs');
-const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get();
-if (userCount.count === 0) {
-  const passwordHash = bcrypt.hashSync('admin', 10);
-  db.prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)').run('admin', passwordHash, 'admin');
-  console.log('Default admin user created: admin / admin');
-}
+      CREATE TABLE IF NOT EXISTS teams (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      CREATE TABLE IF NOT EXISTS team_members (
+        id SERIAL PRIMARY KEY,
+        team_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        role VARCHAR(50) DEFAULT 'member' CHECK(role IN ('owner', 'admin', 'member')),
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE(team_id, user_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS passwords (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        username VARCHAR(255),
+        encrypted_password TEXT NOT NULL,
+        url TEXT,
+        notes TEXT,
+        category_id INTEGER,
+        folder_id INTEGER,
+        team_id INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL,
+        FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS cards (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        cardholder_name VARCHAR(255),
+        encrypted_card_number TEXT NOT NULL,
+        expiry_month VARCHAR(10),
+        expiry_year VARCHAR(10),
+        cvv TEXT,
+        brand VARCHAR(50),
+        category_id INTEGER,
+        folder_id INTEGER,
+        team_id INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL,
+        FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS categories (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS folders (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        parent_id INTEGER,
+        team_id INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (parent_id) REFERENCES folders(id) ON DELETE CASCADE,
+        FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS settings (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER,
+        smtp_host VARCHAR(255),
+        smtp_port INTEGER,
+        smtp_user VARCHAR(255),
+        smtp_password VARCHAR(255),
+        smtp_from VARCHAR(255),
+        notify_on_add INTEGER DEFAULT 0,
+        notify_on_update INTEGER DEFAULT 0,
+        notify_on_delete INTEGER DEFAULT 0,
+        is_global INTEGER DEFAULT 0,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      );
+
+      CREATE TABLE IF NOT EXISTS shared_passwords (
+        id SERIAL PRIMARY KEY,
+        password_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        FOREIGN KEY (password_id) REFERENCES passwords(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE(password_id, user_id)
+      );
+
+      CREATE TABLE IF NOT EXISTS shared_cards (
+        id SERIAL PRIMARY KEY,
+        card_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        FOREIGN KEY (card_id) REFERENCES cards(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        UNIQUE(card_id, user_id)
+      );
+    `);
+
+    await client.query(`
+      INSERT INTO settings (user_id, is_global) 
+      VALUES (NULL, 1) 
+      ON CONFLICT DO NOTHING
+    `);
+
+    const bcrypt = require('bcryptjs');
+    const userCount = await client.query('SELECT COUNT(*) as count FROM users');
+    
+    if (parseInt(userCount.rows[0].count) === 0) {
+      const passwordHash = bcrypt.hashSync('admin', 10);
+      await client.query(
+        'INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3)',
+        ['admin', passwordHash, 'admin']
+      );
+      console.log('Default admin user created: admin / admin');
+    }
+
+    console.log('Database initialized successfully');
+  } catch (error) {
+    console.error('Database initialization error:', error);
+  }
+};
 
 app.use(express.json({ limit: '10mb' }));
+
 app.use((req, res, next) => {
   req.db = db;
   next();
@@ -180,6 +338,8 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
 });
 
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`Server running on port ${PORT}`);
+initDB().then(() => {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`Server running on port ${PORT}`);
+  });
 });

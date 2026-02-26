@@ -7,7 +7,7 @@ const router = express.Router();
 
 router.use(authenticateToken);
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
     res.setHeader('Pragma', 'no-cache');
@@ -18,34 +18,34 @@ router.get('/', (req, res) => {
 
     let query = `
       SELECT p.*, c.name as category_name, f.name as folder_name, t.name as team_name,
-        CASE WHEN p.user_id = ? THEN 0 ELSE 1 END as is_shared,
+        CASE WHEN p.user_id = $1 THEN 0 ELSE 1 END as is_shared,
         u.username as owner_username
       FROM passwords p 
       LEFT JOIN categories c ON p.category_id = c.id 
       LEFT JOIN folders f ON p.folder_id = f.id
       LEFT JOIN users u ON p.user_id = u.id
       LEFT JOIN teams t ON p.team_id = t.id
-      WHERE (p.user_id = ? 
-          OR p.id IN (SELECT password_id FROM shared_passwords WHERE user_id = ?)
-          OR p.team_id IN (SELECT team_id FROM team_members WHERE user_id = ?))
+      WHERE (p.user_id = $1 
+          OR p.id IN (SELECT password_id FROM shared_passwords WHERE user_id = $1)
+          OR p.team_id IN (SELECT team_id FROM team_members WHERE user_id = $1))
     `;
-    const params = [userId, userId, userId, userId];
+    const params = [userId];
 
     if (search) {
-      query += ` AND (p.title LIKE ? OR p.username LIKE ? OR p.url LIKE ?)`;
+      query += ` AND (p.title LIKE $${params.length + 1} OR p.username LIKE $${params.length + 1} OR p.url LIKE $${params.length + 1})`;
       const searchTerm = `%${search}%`;
-      params.push(searchTerm, searchTerm, searchTerm);
+      params.push(searchTerm);
     }
 
     if (category_id) {
-      query += ` AND p.category_id = ?`;
+      query += ` AND p.category_id = $${params.length + 1}`;
       params.push(parseInt(category_id));
     }
 
     const folderId = folder_id;
     
     if (folderId && folderId !== '' && folderId !== 'null' && folderId !== 'undefined') {
-      query += ` AND p.folder_id = ?`;
+      query += ` AND p.folder_id = $${params.length + 1}`;
       params.push(parseInt(folderId));
     } else {
       query += ` AND p.folder_id IS NULL`;
@@ -53,7 +53,7 @@ router.get('/', (req, res) => {
 
     query += ` ORDER BY is_shared ASC, p.created_at DESC`;
 
-    const passwords = db.prepare(query).all(...params);
+    const passwords = await db.prepare(query).all(...params);
 
     const decrypted = passwords.map(p => ({
       ...p,
@@ -67,7 +67,7 @@ router.get('/', (req, res) => {
   }
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;
@@ -79,22 +79,22 @@ router.post('/', (req, res) => {
 
     let teamId = null;
     if (folder_id) {
-      const folder = db.prepare('SELECT team_id FROM folders WHERE id = ?').get(folder_id);
+      const folder = await db.prepare('SELECT team_id FROM folders WHERE id = ?').get(folder_id);
       if (folder && folder.team_id) {
         teamId = folder.team_id;
       }
     }
 
     const encryptedPassword = encrypt(password);
-    const folder = folder_id ? db.prepare('SELECT name FROM folders WHERE id = ?').get(folder_id) : null;
+    const folder = folder_id ? await db.prepare('SELECT name FROM folders WHERE id = ?').get(folder_id) : null;
     const folderInfo = folder ? ` in folder "${folder.name}"` : '';
     
-    const result = db.prepare(`
+    const result = await db.prepare(`
       INSERT INTO passwords (user_id, title, username, encrypted_password, url, folder_id, category_id, notes, team_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
     `).run(userId, title, username || null, encryptedPassword, url || null, folder_id || null, category_id || null, notes || null, teamId);
 
-    sendNotification(db, userId, 'New Password Added', `A new password "${title}" was added to your vault${folderInfo}.`, 'add');
+    await sendNotification(db, userId, 'New Password Added', `A new password "${title}" was added to your vault${folderInfo}.`, 'add');
 
     res.status(201).json({ 
       message: 'Password saved successfully',
@@ -113,14 +113,14 @@ router.post('/', (req, res) => {
   }
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;
     const { id } = req.params;
     const { title, username, password, url, folder_id, category_id, notes } = req.body;
 
-    const existing = db.prepare('SELECT * FROM passwords WHERE id = ? AND user_id = ?').get(id, userId);
+    const existing = await db.prepare('SELECT * FROM passwords WHERE id = $1 AND user_id = $2').get(id, userId);
 
     if (!existing) {
       return res.status(404).json({ error: 'Password not found' });
@@ -128,10 +128,10 @@ router.put('/:id', (req, res) => {
 
     const encryptedPassword = password ? encrypt(password) : existing.encrypted_password;
 
-    db.prepare(`
+    await db.prepare(`
       UPDATE passwords 
-      SET title = ?, username = ?, encrypted_password = ?, url = ?, folder_id = ?, category_id = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ? AND user_id = ?
+      SET title = $1, username = $2, encrypted_password = $3, url = $4, folder_id = $5, category_id = $6, notes = $7, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $8 AND user_id = $9
     `).run(
       title || existing.title,
       username !== undefined ? username : existing.username,
@@ -145,10 +145,10 @@ router.put('/:id', (req, res) => {
     );
 
     const newFolderId = folder_id !== undefined ? folder_id : existing.folder_id;
-    const folder = newFolderId ? db.prepare('SELECT name FROM folders WHERE id = ?').get(newFolderId) : null;
+    const folder = newFolderId ? await db.prepare('SELECT name FROM folders WHERE id = ?').get(newFolderId) : null;
     const folderInfo = folder ? ` in folder "${folder.name}"` : '';
 
-    sendNotification(db, userId, 'Password Updated', `The password "${title || existing.title}" was updated${folderInfo}.`, 'update');
+    await sendNotification(db, userId, 'Password Updated', `The password "${title || existing.title}" was updated${folderInfo}.`, 'update');
 
     res.json({ message: 'Password updated successfully' });
   } catch (error) {
@@ -157,22 +157,22 @@ router.put('/:id', (req, res) => {
   }
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;
     const { id } = req.params;
 
-    const existing = db.prepare('SELECT p.*, f.name as folder_name FROM passwords p LEFT JOIN folders f ON p.folder_id = f.id WHERE p.id = ? AND p.user_id = ?').get(id, userId);
+    const existing = await db.prepare('SELECT p.*, f.name as folder_name FROM passwords p LEFT JOIN folders f ON p.folder_id = f.id WHERE p.id = $1 AND p.user_id = $2').get(id, userId);
 
-    const result = db.prepare('DELETE FROM passwords WHERE id = ? AND user_id = ?').run(id, userId);
+    const result = await db.prepare('DELETE FROM passwords WHERE id = $1 AND user_id = $2').run(id, userId);
 
     if (result.changes === 0) {
       return res.status(404).json({ error: 'Password not found' });
     }
 
     const folderInfo = existing?.folder_name ? ` from folder "${existing.folder_name}"` : '';
-    sendNotification(db, userId, 'Password Deleted', `A password was deleted from your vault${folderInfo}.`, 'delete');
+    await sendNotification(db, userId, 'Password Deleted', `A password was deleted from your vault${folderInfo}.`, 'delete');
 
     res.json({ message: 'Password deleted successfully' });
   } catch (error) {
@@ -192,17 +192,17 @@ router.post('/generate', (req, res) => {
   }
 });
 
-router.get('/export', (req, res) => {
+router.get('/export', async (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;
 
-    const passwords = db.prepare(`
+    const passwords = await db.prepare(`
       SELECT p.*, c.name as category_name, f.name as folder_name
       FROM passwords p 
       LEFT JOIN categories c ON p.category_id = c.id 
       LEFT JOIN folders f ON p.folder_id = f.id
-      WHERE p.user_id = ?
+      WHERE p.user_id = $1
     `).all(userId);
 
     const exportData = passwords.map(p => ({
@@ -210,115 +210,68 @@ router.get('/export', (req, res) => {
       username: p.username,
       password: decrypt(p.encrypted_password),
       url: p.url,
-      folder: p.folder_name,
-      category: p.category_name,
       notes: p.notes,
-      created_at: p.created_at,
-      updated_at: p.updated_at
+      category: p.category_name,
+      folder: p.folder_name
     }));
 
     res.json(exportData);
   } catch (error) {
-    console.error('Export error:', error);
+    console.error('Export passwords error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.post('/import', (req, res) => {
+router.post('/import', async (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;
-    let { passwords } = req.body;
+    const data = req.body;
 
-    if (!passwords) {
-      return res.status(400).json({ error: 'No passwords provided' });
+    let passwordsToImport = [];
+
+    if (Array.isArray(data)) {
+      passwordsToImport = data;
+    } else if (data.items && Array.isArray(data.items)) {
+      passwordsToImport = data.items;
+    } else {
+      return res.status(400).json({ error: 'Invalid import data format' });
     }
 
-    let folderMap = {};
-    
-    if (passwords.folders && Array.isArray(passwords.folders)) {
-      passwords.folders.forEach(folder => {
-        if (folder.id && folder.name) {
-          folderMap[folder.id] = folder.name;
-        }
-      });
-    }
+    let importedCount = 0;
 
-    if (passwords.items && Array.isArray(passwords.items)) {
-      passwords = passwords.items.map(item => {
-        let categoryName = null;
-        if (item.folderId && folderMap[item.folderId]) {
-          categoryName = folderMap[item.folderId];
-        }
-        return {
-          title: item.name,
-          username: item.login?.username || null,
-          password: item.login?.password || '',
-          url: item.login?.uris?.[0]?.uri || null,
-          notes: item.notes || null,
-          category: categoryName
-        };
-      });
-    } else if (!Array.isArray(passwords)) {
-      return res.status(400).json({ error: 'Passwords must be an array' });
-    }
+    for (const p of passwordsToImport) {
+      const title = p.title || p.name || 'Imported';
+      const username = p.login?.username || p.username || null;
+      const password = p.login?.password || p.password || null;
+      const url = p.login?.uri || p.url || null;
+      const notes = p.notes || null;
 
-    let categoryMap = {};
-    const existingCategories = db.prepare('SELECT * FROM categories WHERE user_id = ?').all(userId);
-    existingCategories.forEach(c => {
-      categoryMap[c.name.toLowerCase()] = c.id;
-    });
-
-    const insertPassword = db.prepare(`
-      INSERT INTO passwords (user_id, title, username, encrypted_password, url, category_id, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `);
-
-    const insertCategory = db.prepare(`
-      INSERT INTO categories (user_id, name) VALUES (?, ?)
-    `);
-
-    let imported = 0;
-
-    passwords.forEach(p => {
-      let categoryId = null;
-      
-      if (p.category && typeof p.category === 'string') {
-        const catName = p.category.toLowerCase();
-        if (categoryMap[catName]) {
-          categoryId = categoryMap[catName];
-        } else if (p.category) {
-          const result = db.prepare('INSERT INTO categories (user_id, name) VALUES (?, ?)').run(userId, p.category);
-          categoryId = result.lastInsertRowid;
-          categoryMap[catName] = categoryId;
-        }
+      if (password) {
+        const encryptedPassword = encrypt(password);
+        await db.prepare(`
+          INSERT INTO passwords (user_id, title, username, encrypted_password, url, notes)
+          VALUES ($1, $2, $3, $4, $5, $6)
+        `).run(userId, title, username, encryptedPassword, url, notes);
+        importedCount++;
       }
+    }
 
-      insertPassword.run(
-        userId,
-        p.title || 'Untitled',
-        p.username || null,
-        encrypt(p.password || ''),
-        p.url || null,
-        categoryId,
-        p.notes || null
-      );
-      imported++;
-    });
+    await sendNotification(db, userId, 'Passwords Imported', `${importedCount} passwords were imported to your vault.`, 'add');
 
-    res.json({ message: `Successfully imported ${imported} passwords` });
+    res.json({ message: `Successfully imported ${importedCount} passwords` });
   } catch (error) {
-    console.error('Import error:', error);
+    console.error('Import passwords error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.get('/categories', (req, res) => {
+router.get('/categories', async (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;
 
-    const categories = db.prepare('SELECT * FROM categories WHERE user_id = ? ORDER BY name').all(userId);
+    const categories = await db.prepare('SELECT * FROM categories WHERE user_id = $1 ORDER BY name').all(userId);
     res.json(categories);
   } catch (error) {
     console.error('Get categories error:', error);
@@ -326,7 +279,7 @@ router.get('/categories', (req, res) => {
   }
 });
 
-router.post('/categories', (req, res) => {
+router.post('/categories', async (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;
@@ -336,28 +289,22 @@ router.post('/categories', (req, res) => {
       return res.status(400).json({ error: 'Category name is required' });
     }
 
-    const existing = db.prepare('SELECT * FROM categories WHERE user_id = ? AND LOWER(name) = LOWER(?)').get(userId, name);
+    const result = await db.prepare('INSERT INTO categories (user_id, name) VALUES ($1, $2)').run(userId, name);
 
-    if (existing) {
-      return res.status(400).json({ error: 'Category already exists' });
-    }
-
-    const result = db.prepare('INSERT INTO categories (user_id, name) VALUES (?, ?)').run(userId, name);
-
-    res.status(201).json({ id: result.lastInsertRowid, name });
+    res.status(201).json({ id: result.lastInsertRowid, user_id: userId, name });
   } catch (error) {
     console.error('Create category error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
 
-router.delete('/categories/:id', (req, res) => {
+router.delete('/categories/:id', async (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;
     const { id } = req.params;
 
-    const result = db.prepare('DELETE FROM categories WHERE id = ? AND user_id = ?').run(id, userId);
+    const result = await db.prepare('DELETE FROM categories WHERE id = $1 AND user_id = $2').run(id, userId);
 
     if (result.changes === 0) {
       return res.status(404).json({ error: 'Category not found' });
@@ -366,77 +313,6 @@ router.delete('/categories/:id', (req, res) => {
     res.json({ message: 'Category deleted successfully' });
   } catch (error) {
     console.error('Delete category error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-router.post('/share/:id', (req, res) => {
-  try {
-    const db = req.db;
-    const userId = req.user.id;
-    const { id } = req.params;
-    const { user_id } = req.body;
-
-    const password = db.prepare('SELECT * FROM passwords WHERE id = ? AND user_id = ?').get(id, userId);
-    if (!password) {
-      return res.status(404).json({ error: 'Password not found or not owned by you' });
-    }
-
-    const targetUser = db.prepare('SELECT id, username FROM users WHERE id = ?').get(user_id);
-    if (!targetUser) {
-      return res.status(404).json({ error: 'User not found' });
-    }
-
-    db.prepare('INSERT OR IGNORE INTO shared_passwords (password_id, user_id) VALUES (?, ?)').run(id, user_id);
-
-    res.json({ message: `Password shared with ${targetUser.username}` });
-  } catch (error) {
-    console.error('Share password error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-router.delete('/share/:id', (req, res) => {
-  try {
-    const db = req.db;
-    const userId = req.user.id;
-    const { id } = req.params;
-    const { user_id } = req.query;
-
-    const password = db.prepare('SELECT * FROM passwords WHERE id = ? AND user_id = ?').get(id, userId);
-    if (!password) {
-      return res.status(404).json({ error: 'Password not found or not owned by you' });
-    }
-
-    db.prepare('DELETE FROM shared_passwords WHERE password_id = ? AND user_id = ?').run(id, user_id);
-
-    res.json({ message: 'Share removed' });
-  } catch (error) {
-    console.error('Remove share error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-router.get('/shared/:id', (req, res) => {
-  try {
-    const db = req.db;
-    const userId = req.user.id;
-    const { id } = req.params;
-
-    const password = db.prepare('SELECT * FROM passwords WHERE id = ? AND user_id = ?').get(id, userId);
-    if (!password) {
-      return res.status(404).json({ error: 'Password not found or not owned by you' });
-    }
-
-    const shared = db.prepare(`
-      SELECT u.id, u.username FROM users u
-      JOIN shared_passwords sp ON sp.user_id = u.id
-      WHERE sp.password_id = ?
-    `).all(id);
-
-    res.json(shared);
-  } catch (error) {
-    console.error('Get shared users error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

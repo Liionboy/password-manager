@@ -7,7 +7,7 @@ const router = express.Router();
 
 router.use(authenticateToken);
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;
@@ -15,34 +15,34 @@ router.get('/', (req, res) => {
 
     let query = `
       SELECT c.*, cat.name as category_name, f.name as folder_name, t.name as team_name,
-        CASE WHEN c.user_id = ? THEN 0 ELSE 1 END as is_shared,
+        CASE WHEN c.user_id = $1 THEN 0 ELSE 1 END as is_shared,
         u.username as owner_username
       FROM cards c 
       LEFT JOIN categories cat ON c.category_id = cat.id 
       LEFT JOIN folders f ON c.folder_id = f.id
       LEFT JOIN users u ON c.user_id = u.id
       LEFT JOIN teams t ON c.team_id = t.id
-      WHERE (c.user_id = ? 
-         OR c.id IN (SELECT card_id FROM shared_cards WHERE user_id = ?)
-         OR c.team_id IN (SELECT team_id FROM team_members WHERE user_id = ?))
+      WHERE (c.user_id = $1 
+         OR c.id IN (SELECT card_id FROM shared_cards WHERE user_id = $1)
+         OR c.team_id IN (SELECT team_id FROM team_members WHERE user_id = $1))
     `;
-    const params = [userId, userId, userId, userId];
+    const params = [userId];
 
     if (search) {
-      query += ` AND (c.title LIKE ? OR c.cardholder_name LIKE ?)`;
+      query += ` AND (c.title LIKE $${params.length + 1} OR c.cardholder_name LIKE $${params.length + 1})`;
       const searchTerm = `%${search}%`;
-      params.push(searchTerm, searchTerm);
+      params.push(searchTerm);
     }
 
     if (category_id) {
-      query += ` AND c.category_id = ?`;
+      query += ` AND c.category_id = $${params.length + 1}`;
       params.push(parseInt(category_id));
     }
 
     const folderId = folder_id === '' || folder_id === 'null' || !folder_id ? null : folder_id;
     
     if (folderId) {
-      query += ` AND c.folder_id = ?`;
+      query += ` AND c.folder_id = $${params.length + 1}`;
       params.push(parseInt(folderId));
     } else {
       query += ` AND c.folder_id IS NULL`;
@@ -50,7 +50,7 @@ router.get('/', (req, res) => {
 
     query += ` ORDER BY is_shared ASC, c.created_at DESC`;
 
-    const cards = db.prepare(query).all(...params);
+    const cards = await db.prepare(query).all(...params);
 
     const decrypted = cards.map(card => ({
       ...card,
@@ -65,7 +65,7 @@ router.get('/', (req, res) => {
   }
 });
 
-router.post('/', (req, res) => {
+router.post('/', async (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;
@@ -77,7 +77,7 @@ router.post('/', (req, res) => {
 
     let teamId = null;
     if (folder_id) {
-      const folder = db.prepare('SELECT team_id FROM folders WHERE id = ?').get(folder_id);
+      const folder = await db.prepare('SELECT team_id FROM folders WHERE id = ?').get(folder_id);
       if (folder && folder.team_id) {
         teamId = folder.team_id;
       }
@@ -85,15 +85,15 @@ router.post('/', (req, res) => {
 
     const encryptedCardNumber = encrypt(card_number);
     const encryptedCvv = cvv ? encrypt(cvv) : null;
-    const folder = folder_id ? db.prepare('SELECT name FROM folders WHERE id = ?').get(folder_id) : null;
+    const folder = folder_id ? await db.prepare('SELECT name FROM folders WHERE id = ?').get(folder_id) : null;
     const folderInfo = folder ? ` in folder "${folder.name}"` : '';
     
-    const result = db.prepare(`
+    const result = await db.prepare(`
       INSERT INTO cards (user_id, title, cardholder_name, encrypted_card_number, expiry_month, expiry_year, cvv, brand, category_id, notes, team_id, folder_id)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
     `).run(userId, title, cardholder_name || null, encryptedCardNumber, expiry_month || null, expiry_year || null, encryptedCvv, brand || null, category_id || null, notes || null, teamId, folder_id || null);
 
-    sendNotification(db, userId, 'New Card Added', `A new card "${title}" was added to your vault${folderInfo}.`, 'add');
+    await sendNotification(db, userId, 'New Card Added', `A new card "${title}" was added to your vault${folderInfo}.`, 'add');
 
     res.status(201).json({ 
       message: 'Card saved successfully',
@@ -114,14 +114,14 @@ router.post('/', (req, res) => {
   }
 });
 
-router.put('/:id', (req, res) => {
+router.put('/:id', async (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;
     const { id } = req.params;
-    const { title, cardholder_name, card_number, expiry_month, expiry_year, cvv, brand, category_id, notes } = req.body;
+    const { title, cardholder_name, card_number, expiry_month, expiry_year, cvv, brand, category_id, notes, folder_id } = req.body;
 
-    const existing = db.prepare('SELECT * FROM cards WHERE id = ? AND user_id = ?').get(id, userId);
+    const existing = await db.prepare('SELECT * FROM cards WHERE id = $1 AND user_id = $2').get(id, userId);
 
     if (!existing) {
       return res.status(404).json({ error: 'Card not found' });
@@ -130,10 +130,10 @@ router.put('/:id', (req, res) => {
     const encryptedCardNumber = card_number ? encrypt(card_number) : existing.encrypted_card_number;
     const encryptedCvv = cvv ? encrypt(cvv) : existing.cvv;
 
-    db.prepare(`
+    await db.prepare(`
       UPDATE cards 
-      SET title = ?, cardholder_name = ?, encrypted_card_number = ?, expiry_month = ?, expiry_year = ?, cvv = ?, brand = ?, category_id = ?, notes = ?, updated_at = CURRENT_TIMESTAMP
-      WHERE id = ? AND user_id = ?
+      SET title = $1, cardholder_name = $2, encrypted_card_number = $3, expiry_month = $4, expiry_year = $5, cvv = $6, brand = $7, category_id = $8, notes = $9, updated_at = CURRENT_TIMESTAMP
+      WHERE id = $10 AND user_id = $11
     `).run(
       title || existing.title,
       cardholder_name !== undefined ? cardholder_name : existing.cardholder_name,
@@ -149,10 +149,10 @@ router.put('/:id', (req, res) => {
     );
 
     const newFolderId = folder_id !== undefined ? folder_id : existing.folder_id;
-    const folder = newFolderId ? db.prepare('SELECT name FROM folders WHERE id = ?').get(newFolderId) : null;
+    const folder = newFolderId ? await db.prepare('SELECT name FROM folders WHERE id = ?').get(newFolderId) : null;
     const folderInfo = folder ? ` in folder "${folder.name}"` : '';
 
-    sendNotification(db, userId, 'Card Updated', `The card "${title || existing.title}" was updated${folderInfo}.`, 'update');
+    await sendNotification(db, userId, 'Card Updated', `The card "${title || existing.title}" was updated${folderInfo}.`, 'update');
 
     res.json({ message: 'Card updated successfully' });
   } catch (error) {
@@ -161,22 +161,22 @@ router.put('/:id', (req, res) => {
   }
 });
 
-router.delete('/:id', (req, res) => {
+router.delete('/:id', async (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;
     const { id } = req.params;
 
-    const existing = db.prepare('SELECT c.*, f.name as folder_name FROM cards c LEFT JOIN folders f ON c.folder_id = f.id WHERE c.id = ? AND c.user_id = ?').get(id, userId);
+    const existing = await db.prepare('SELECT c.*, f.name as folder_name FROM cards c LEFT JOIN folders f ON c.folder_id = f.id WHERE c.id = $1 AND c.user_id = $2').get(id, userId);
 
-    const result = db.prepare('DELETE FROM cards WHERE id = ? AND user_id = ?').run(id, userId);
+    const result = await db.prepare('DELETE FROM cards WHERE id = $1 AND user_id = $2').run(id, userId);
 
     if (result.changes === 0) {
       return res.status(404).json({ error: 'Card not found' });
     }
 
     const folderInfo = existing?.folder_name ? ` from folder "${existing.folder_name}"` : '';
-    sendNotification(db, userId, 'Card Deleted', `A card was deleted from your vault${folderInfo}.`, 'delete');
+    await sendNotification(db, userId, 'Card Deleted', `A card was deleted from your vault${folderInfo}.`, 'delete');
 
     res.json({ message: 'Card deleted successfully' });
   } catch (error) {

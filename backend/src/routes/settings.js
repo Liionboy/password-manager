@@ -6,20 +6,20 @@ const router = express.Router();
 
 router.use(authenticateToken);
 
-router.get('/', (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;
 
-    let settings = db.prepare('SELECT * FROM settings WHERE user_id = ?').get(userId);
+    let settings = await db.prepare('SELECT * FROM settings WHERE user_id = ?').get(userId);
     
     if (!settings) {
-      db.prepare('INSERT INTO settings (user_id) VALUES (?)').run(userId);
-      settings = db.prepare('SELECT * FROM settings WHERE user_id = ?').get(userId);
+      await db.prepare('INSERT INTO settings (user_id) VALUES (?)').run(userId);
+      settings = await db.prepare('SELECT * FROM settings WHERE user_id = ?').get(userId);
     }
 
     if (req.user.role === 'admin') {
-      const globalSettings = db.prepare('SELECT * FROM settings WHERE is_global = 1').get();
+      const globalSettings = await db.prepare('SELECT * FROM settings WHERE is_global = 1').get();
       if (globalSettings) {
         settings = { ...settings, is_global: globalSettings.is_global };
         if (globalSettings.smtp_host && !settings.smtp_host) {
@@ -34,7 +34,7 @@ router.get('/', (req, res) => {
         }
       }
     } else {
-      const globalSettings = db.prepare('SELECT * FROM settings WHERE is_global = 1').get();
+      const globalSettings = await db.prepare('SELECT * FROM settings WHERE is_global = 1').get();
       if (globalSettings && globalSettings.smtp_host && !settings.smtp_host) {
         settings.smtp_host = globalSettings.smtp_host;
         settings.smtp_port = globalSettings.smtp_port;
@@ -58,7 +58,7 @@ router.get('/', (req, res) => {
   }
 });
 
-router.put('/', (req, res) => {
+router.put('/', async (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;
@@ -69,46 +69,46 @@ router.put('/', (req, res) => {
     }
 
     if (is_global) {
-      const globalSettings = db.prepare('SELECT * FROM settings WHERE is_global = 1').get();
+      const globalSettings = await db.prepare('SELECT * FROM settings WHERE is_global = 1').get();
       if (globalSettings) {
         let updateSql = `UPDATE settings SET 
-          smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_from = ?,
-          notify_on_add = ?, notify_on_update = ?, notify_on_delete = ?`;
+          smtp_host = $1, smtp_port = $2, smtp_user = $3, smtp_from = $4,
+          notify_on_add = $5, notify_on_update = $6, notify_on_delete = $7`;
         let params = [smtp_host, smtp_port, smtp_user, smtp_from, notify_on_add ? 1 : 0, notify_on_update ? 1 : 0, notify_on_delete ? 1 : 0];
 
         if (smtp_password && smtp_password !== '***hidden***') {
-          updateSql += ', smtp_password = ?';
+          updateSql += ', smtp_password = $8';
           params.push(smtp_password);
         }
 
         updateSql += ' WHERE is_global = 1';
-        db.prepare(updateSql).run(...params);
+        await db.prepare(updateSql).run(...params);
       } else {
-        db.prepare(`INSERT INTO settings (user_id, smtp_host, smtp_port, smtp_user, smtp_password, smtp_from, notify_on_add, notify_on_update, notify_on_delete, is_global)
-          VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, 1)`).run(smtp_host, smtp_port, smtp_user, smtp_password, smtp_from, notify_on_add ? 1 : 0, notify_on_update ? 1 : 0, notify_on_delete ? 1 : 0);
+        await db.prepare(`INSERT INTO settings (user_id, smtp_host, smtp_port, smtp_user, smtp_password, smtp_from, notify_on_add, notify_on_update, notify_on_delete, is_global)
+          VALUES (NULL, $1, $2, $3, $4, $5, $6, $7, $8, 1)`).run(smtp_host, smtp_port, smtp_user, smtp_password, smtp_from, notify_on_add ? 1 : 0, notify_on_update ? 1 : 0, notify_on_delete ? 1 : 0);
       }
     }
 
-    const existing = db.prepare('SELECT * FROM settings WHERE user_id = ?').get(userId);
+    const existing = await db.prepare('SELECT * FROM settings WHERE user_id = ?').get(userId);
 
     if (existing) {
       let updateSql = `UPDATE settings SET 
-        smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_from = ?, 
-        notify_on_add = ?, notify_on_update = ?, notify_on_delete = ?`;
+        smtp_host = $1, smtp_port = $2, smtp_user = $3, smtp_from = $4, 
+        notify_on_add = $5, notify_on_update = $6, notify_on_delete = $7`;
       let params = [smtp_host, smtp_port, smtp_user, smtp_from, notify_on_add ? 1 : 0, notify_on_update ? 1 : 0, notify_on_delete ? 1 : 0];
 
       if (smtp_password && smtp_password !== '***hidden***') {
-        updateSql += ', smtp_password = ?';
+        updateSql += ', smtp_password = $8';
         params.push(smtp_password);
       }
 
-      updateSql += ' WHERE user_id = ?';
+      updateSql += ' WHERE user_id = $9';
       params.push(userId);
 
-      db.prepare(updateSql).run(...params);
+      await db.prepare(updateSql).run(...params);
     } else {
-      db.prepare(`INSERT INTO settings (user_id, smtp_host, smtp_port, smtp_user, smtp_password, smtp_from, notify_on_add, notify_on_update, notify_on_delete)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`).run(
+      await db.prepare(`INSERT INTO settings (user_id, smtp_host, smtp_port, smtp_user, smtp_password, smtp_from, notify_on_add, notify_on_update, notify_on_delete)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`).run(
         userId, smtp_host, smtp_port, smtp_user, smtp_password, smtp_from, notify_on_add ? 1 : 0, notify_on_update ? 1 : 0, notify_on_delete ? 1 : 0
       );
     }
@@ -195,14 +195,14 @@ const sendNotification = async (db, userId, subject, body, actionType) => {
   console.log('sendNotification called for user', userId, 'subject:', subject);
   try {
     console.log('Getting user and settings for userId:', userId);
-    let settings = db.prepare('SELECT * FROM settings WHERE user_id = ?').get(userId);
-    const user = db.prepare('SELECT email FROM users WHERE id = ?').get(userId);
+    let settings = await db.prepare('SELECT * FROM settings WHERE user_id = ?').get(userId);
+    const user = await db.prepare('SELECT email FROM users WHERE id = ?').get(userId);
     console.log('User email:', user?.email, 'Settings:', settings);
     
     let isGlobal = false;
     if (!settings || !settings.smtp_host) {
       console.log('No personal settings, checking global');
-      const globalSettings = db.prepare('SELECT * FROM settings WHERE is_global = 1').get();
+      const globalSettings = await db.prepare('SELECT * FROM settings WHERE is_global = 1').get();
       console.log('Global settings:', globalSettings);
       if (globalSettings && globalSettings.smtp_host) {
         settings = globalSettings;
