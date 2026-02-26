@@ -77,9 +77,10 @@ db.exec(`
     user_id INTEGER NOT NULL,
     title TEXT NOT NULL,
     username TEXT,
-    password_encrypted TEXT NOT NULL,
+    encrypted_password TEXT NOT NULL,
     url TEXT,
     notes TEXT,
+    category_id INTEGER,
     folder_id INTEGER,
     team_id INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -94,11 +95,12 @@ db.exec(`
     user_id INTEGER NOT NULL,
     title TEXT NOT NULL,
     cardholder_name TEXT,
-    card_number_encrypted TEXT NOT NULL,
+    encrypted_card_number TEXT NOT NULL,
     expiry_month TEXT,
     expiry_year TEXT,
-    cvv_encrypted TEXT,
+    cvv TEXT,
     brand TEXT,
+    category_id INTEGER,
     folder_id INTEGER,
     team_id INTEGER,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
@@ -157,6 +159,23 @@ db.exec(`
     UNIQUE(card_id, user_id)
   );
 `);
+
+try {
+  db.exec('ALTER TABLE passwords ADD COLUMN category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL');
+} catch (e) {}
+try {
+  db.exec('ALTER TABLE passwords ADD COLUMN encrypted_password TEXT');
+} catch (e) {}
+try {
+  db.exec('ALTER TABLE cards ADD COLUMN category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL');
+} catch (e) {}
+
+try {
+  db.exec('ALTER TABLE passwords ADD COLUMN updated_at DATETIME');
+} catch (e) {}
+try {
+  db.exec('ALTER TABLE cards ADD COLUMN updated_at DATETIME');
+} catch (e) {}
 
 try {
   db.exec('ALTER TABLE users ADD COLUMN failed_login_attempts INTEGER DEFAULT 0');
