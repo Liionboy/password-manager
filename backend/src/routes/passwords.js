@@ -9,6 +9,9 @@ router.use(authenticateToken);
 
 router.get('/', (req, res) => {
   try {
+    res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    
     const db = req.db;
     const userId = req.user.id;
     const { search, category_id, folder_id } = req.query;
