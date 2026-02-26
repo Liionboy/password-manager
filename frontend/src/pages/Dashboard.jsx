@@ -15,7 +15,9 @@ function Dashboard({ token, setToken, role = 'user' }) {
   const [showExportModal, setShowExportModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showFolderModal, setShowFolderModal] = useState(false);
+  const [showEditFolderModal, setShowEditFolderModal] = useState(false);
   const [newFolder, setNewFolder] = useState({ name: '', parent_id: '', team_id: '' });
+  const [editFolder, setEditFolder] = useState({ id: '', name: '', parent_id: '', team_id: '' });
   const [importData, setImportData] = useState('');
   const [expandedFolders, setExpandedFolders] = useState({});
   const navigate = useNavigate();
@@ -105,6 +107,31 @@ function Dashboard({ token, setToken, role = 'user' }) {
     }
   };
 
+  const handleEditFolderClick = (folder) => {
+    setEditFolder({
+      id: folder.id,
+      name: folder.name,
+      parent_id: folder.parent_id || '',
+      team_id: folder.team_id || ''
+    });
+    setShowEditFolderModal(true);
+  };
+
+  const handleUpdateFolder = async () => {
+    if (!editFolder.name.trim()) return;
+    try {
+      await foldersApi.update(editFolder.id, {
+        name: editFolder.name,
+        parent_id: editFolder.parent_id || null,
+        team_id: editFolder.team_id || null
+      });
+      setShowEditFolderModal(false);
+      loadFolders();
+    } catch (err) {
+      alert('Error updating folder: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
   const toggleFolder = (id) => {
     setExpandedFolders(prev => ({ ...prev, [id]: !prev[id] }));
   };
@@ -134,6 +161,12 @@ function Dashboard({ token, setToken, role = 'user' }) {
           <span onClick={() => setSelectedFolder(folder.id)} style={{ flex: 1 }}>
             📁 {folder.name}
           </span>
+          <button 
+            onClick={() => handleEditFolderClick(folder)} 
+            style={{ padding: '4px 8px', fontSize: '10px', background: 'rgba(0, 240, 255, 0.1)', color: '#00f0ff', border: '1px solid rgba(0, 240, 255, 0.3)', borderRadius: '4px', cursor: 'pointer', marginRight: '4px' }}
+          >
+            ✏️
+          </button>
           <button 
             onClick={() => handleDeleteFolder(folder.id)} 
             style={{ padding: '4px 8px', fontSize: '10px', background: 'rgba(220, 38, 38, 0.2)', color: '#f87171', border: '1px solid rgba(220, 38, 38, 0.3)', borderRadius: '4px', cursor: 'pointer' }}
@@ -497,6 +530,57 @@ function Dashboard({ token, setToken, role = 'user' }) {
             <div className="form-actions">
               <button onClick={handleCreateFolder} className="success">Create</button>
               <button onClick={() => setShowFolderModal(false)} className="secondary">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEditFolderModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0, 0, 0, 0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          backdropFilter: 'blur(4px)'
+        }}>
+          <div className="form-container">
+            <h2>Edit Folder</h2>
+            <div className="form-group">
+              <label>Folder Name</label>
+              <input
+                type="text"
+                value={editFolder.name}
+                onChange={(e) => setEditFolder({ ...editFolder, name: e.target.value })}
+                placeholder="Folder name"
+              />
+            </div>
+            <div className="form-group">
+              <label>Parent Folder</label>
+              <select
+                value={editFolder.parent_id}
+                onChange={(e) => setEditFolder({ ...editFolder, parent_id: e.target.value })}
+              >
+                <option value="">None (Root)</option>
+                {folderList.filter(f => f.id !== editFolder.id).map(f => (
+                  <option key={f.id} value={f.id}>{f.name}</option>
+                ))}
+              </select>
+            </div>
+            {role === 'admin' && (
+              <div className="form-group">
+                <label>Team</label>
+                <select
+                  value={editFolder.team_id}
+                  onChange={(e) => setEditFolder({ ...editFolder, team_id: e.target.value })}
+                >
+                  <option value="">Personal (no team)</option>
+                  {teamList.map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+            <div className="form-actions">
+              <button onClick={handleUpdateFolder} className="success">Save</button>
+              <button onClick={() => setShowEditFolderModal(false)} className="secondary">Cancel</button>
             </div>
           </div>
         </div>

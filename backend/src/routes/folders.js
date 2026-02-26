@@ -97,8 +97,9 @@ router.put('/:id', (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;
+    const userRole = req.user.role;
     const { id } = req.params;
-    const { name, parent_id } = req.body;
+    const { name, parent_id, team_id } = req.body;
 
     const existing = db.prepare('SELECT * FROM folders WHERE id = ? AND user_id = ?').get(id, userId);
 
@@ -110,15 +111,27 @@ router.put('/:id', (req, res) => {
       if (parseInt(parent_id) === parseInt(id)) {
         return res.status(400).json({ error: 'Folder cannot be its own parent' });
       }
-      const parent = db.prepare('SELECT * FROM folders WHERE id = ? AND user_id = ?').get(parent_id, userId);
+      const parent = db.prepare('SELECT * FROM folders WHERE id = ? AND (user_id = ? OR team_id IN (SELECT team_id FROM team_members WHERE user_id = ?))').get(parent_id, userId, userId);
       if (!parent) {
         return res.status(400).json({ error: 'Parent folder not found' });
       }
     }
 
+    let allowedTeamId = existing.team_id;
+    if (team_id !== undefined && userRole === 'admin') {
+      if (team_id) {
+        const team = db.prepare('SELECT * FROM teams WHERE id = ?').get(team_id);
+        if (team) {
+          allowedTeamId = team_id;
+        }
+      } else {
+        allowedTeamId = null;
+      }
+    }
+
     db.prepare(`
-      UPDATE folders SET name = ?, parent_id = ? WHERE id = ? AND user_id = ?
-    `).run(name || existing.name, parent_id !== undefined ? parent_id : existing.parent_id, id, userId);
+      UPDATE folders SET name = ?, parent_id = ?, team_id = ? WHERE id = ? AND user_id = ?
+    `).run(name || existing.name, parent_id !== undefined ? parent_id : existing.parent_id, allowedTeamId, id, userId);
 
     res.json({ message: 'Folder updated successfully' });
   } catch (error) {
