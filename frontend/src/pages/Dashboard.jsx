@@ -21,6 +21,7 @@ function Dashboard({ token, setToken, role = 'user' }) {
   const navigate = useNavigate();
 
   useEffect(() => {
+    console.log('useEffect triggered, selectedFolder:', selectedFolder);
     loadPasswords();
     loadCards();
     loadCategories();

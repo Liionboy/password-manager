@@ -13,8 +13,6 @@ router.get('/', (req, res) => {
     const userId = req.user.id;
     const { search, category_id, folder_id } = req.query;
 
-    console.log('folder_id received:', folder_id, 'type:', typeof folder_id);
-
     let query = `
       SELECT p.*, c.name as category_name, f.name as folder_name, t.name as team_name,
         CASE WHEN p.user_id = ? THEN 0 ELSE 1 END as is_shared,
@@ -42,7 +40,6 @@ router.get('/', (req, res) => {
     }
 
     const folderId = folder_id;
-    console.log('Filtering by folderId:', folderId);
     
     if (folderId && folderId !== '' && folderId !== 'null' && folderId !== 'undefined') {
       query += ` AND p.folder_id = ?`;
