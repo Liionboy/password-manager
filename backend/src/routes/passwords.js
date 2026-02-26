@@ -13,6 +13,8 @@ router.get('/', (req, res) => {
     const userId = req.user.id;
     const { search, category_id, folder_id } = req.query;
 
+    console.log('folder_id received:', folder_id, 'type:', typeof folder_id);
+
     let query = `
       SELECT p.*, c.name as category_name, f.name as folder_name, t.name as team_name,
         CASE WHEN p.user_id = ? THEN 0 ELSE 1 END as is_shared,
@@ -39,9 +41,10 @@ router.get('/', (req, res) => {
       params.push(parseInt(category_id));
     }
 
-    const folderId = folder_id === '' || folder_id === 'null' || !folder_id ? null : folder_id;
+    const folderId = folder_id;
+    console.log('Filtering by folderId:', folderId);
     
-    if (folderId) {
+    if (folderId && folderId !== '' && folderId !== 'null' && folderId !== 'undefined') {
       query += ` AND p.folder_id = ?`;
       params.push(parseInt(folderId));
     } else {
@@ -51,6 +54,7 @@ router.get('/', (req, res) => {
     query += ` ORDER BY is_shared ASC, p.created_at DESC`;
 
     const passwords = db.prepare(query).all(...params);
+    console.log('Passwords returned:', passwords.length);
 
     const decrypted = passwords.map(p => ({
       ...p,
