@@ -67,101 +67,16 @@ db.exec(`
     team_id INTEGER NOT NULL,
     user_id INTEGER NOT NULL,
     role TEXT DEFAULT 'member' CHECK(role IN ('owner', 'admin', 'member')),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     UNIQUE(team_id, user_id)
   );
-
-  CREATE TABLE IF NOT EXISTS passwords (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    title TEXT NOT NULL,
-    username TEXT,
-    encrypted_password TEXT NOT NULL,
-    url TEXT,
-    notes TEXT,
-    category_id INTEGER,
-    folder_id INTEGER,
-    team_id INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL,
-    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
-  );
-
-  CREATE TABLE IF NOT EXISTS cards (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    title TEXT NOT NULL,
-    cardholder_name TEXT,
-    encrypted_card_number TEXT NOT NULL,
-    expiry_month TEXT,
-    expiry_year TEXT,
-    cvv TEXT,
-    brand TEXT,
-    category_id INTEGER,
-    folder_id INTEGER,
-    team_id INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL,
-    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
-  );
-
-  CREATE TABLE IF NOT EXISTS categories (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-  );
-
-  CREATE TABLE IF NOT EXISTS folders (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL,
-    name TEXT NOT NULL,
-    parent_id INTEGER,
-    team_id INTEGER,
-    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    FOREIGN KEY (parent_id) REFERENCES folders(id) ON DELETE CASCADE,
-    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
-  );
-
-  CREATE TABLE IF NOT EXISTS settings (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER,
-    smtp_host TEXT,
-    smtp_port INTEGER,
-    smtp_user TEXT,
-    smtp_password TEXT,
-    smtp_from TEXT,
-    notify_on_add INTEGER DEFAULT 0,
-    notify_on_update INTEGER DEFAULT 0,
-    notify_on_delete INTEGER DEFAULT 0,
-    is_global INTEGER DEFAULT 0,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-  );
-
-  CREATE TABLE IF NOT EXISTS shared_passwords (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    password_id INTEGER NOT NULL,
-    user_id INTEGER NOT NULL,
-    FOREIGN KEY (password_id) REFERENCES passwords(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    UNIQUE(password_id, user_id)
-  );
-
-  CREATE TABLE IF NOT EXISTS shared_cards (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    card_id INTEGER NOT NULL,
-    user_id INTEGER NOT NULL,
-    FOREIGN KEY (card_id) REFERENCES cards(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    UNIQUE(card_id, user_id)
-  );
 `);
+
+try {
+  db.exec('ALTER TABLE team_members ADD COLUMN created_at DATETIME DEFAULT CURRENT_TIMESTAMP');
+} catch (e) {}
 
 try {
   db.exec('ALTER TABLE settings ADD COLUMN smtp_password TEXT');
