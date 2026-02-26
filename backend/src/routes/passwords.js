@@ -36,12 +36,12 @@ router.get('/', (req, res) => {
 
     if (category_id) {
       query += ` AND p.category_id = ?`;
-      params.push(category_id);
+      params.push(parseInt(category_id));
     }
 
     if (folder_id) {
       query += ` AND p.folder_id = ?`;
-      params.push(folder_id);
+      params.push(parseInt(folder_id));
     }
 
     query += ` ORDER BY is_shared ASC, p.created_at DESC`;
