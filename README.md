@@ -2,7 +2,7 @@
 
 A secure, self-hosted password manager application built with React, Node.js, and SQLite - all containerized with Docker.
 
-![Version](https://img.shields.io/badge/version-1.4.0-blue)
+![Version](https://img.shields.io/badge/version-1.6.0-blue)
 ![Docker](https://img.shields.io/badge/Docker-ready-blueviolet)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -10,7 +10,14 @@ A secure, self-hosted password manager application built with React, Node.js, an
 
 - **Secure Authentication** - User registration and login with JWT tokens
 - **Two-Factor Authentication (TOTP)** - Add an extra layer of security with authenticator apps
+- **Password Recovery** - Forgot/reset password via email
+- **Change Password** - Users can change their password from Profile page
 - **AES-256 Encryption** - All passwords and card numbers are encrypted at rest
+- **Password Generator** - Customizable password generator (length, uppercase, lowercase, numbers, symbols)
+- **Password Strength Validation** - Minimum 8 characters with uppercase, lowercase, numbers, and special characters
+- **Account Lockout** - Automatic account lockout after 5 failed login attempts (15 minutes)
+- **Rate Limiting** - Protection against brute force attacks
+- **Security Headers** - Helmet.js for enhanced security headers
 - **Password Generator** - Customizable password generator (length, uppercase, lowercase, numbers, symbols)
 - **Categories** - Organize your passwords and cards with custom categories
 - **Folders** - Organize passwords and cards in nested folders
@@ -69,6 +76,8 @@ http://localhost:1532
 1. Register a new account on the registration page
 2. Login with your credentials
 3. Start adding your passwords!
+
+> **Note:** The first registered user becomes admin. Default admin credentials: `admin` / `admin` (after resetting the database)
 
 ### Adding a Password
 
@@ -138,6 +147,20 @@ The first registered user becomes the admin. Admin capabilities:
 
 You can disable 2FA anytime from the Profile page.
 
+### Password Recovery
+
+1. Click **Forgot your password?** on the login page
+2. Enter your username
+3. Check your email for the reset link
+4. Click the link and set a new password
+5. Login with your new password
+
+### Change Password
+
+1. Click **Profile** in the header
+2. Enter your current password and new password
+3. Click **Save** to update your password
+
 ## 📁 Project Structure
 
 ```
@@ -192,9 +215,13 @@ The following environment variables can be configured in `docker-compose.yml`:
 ## 🔒 Security Considerations
 
 - All passwords and card numbers are encrypted using AES-256 before storage
-- JWT tokens expire after 24 hours
+- JWT tokens expire after 24 hours (MFA temp tokens after 5 minutes)
 - Passwords and card data are never stored in plain text
 - SQLite database is stored in a Docker volume for persistence
+- Password strength validation (minimum 8 chars + 3 character types)
+- Account lockout after 5 failed login attempts (15 minutes)
+- Rate limiting on all endpoints (100 req/15min general, 10 req/15min auth)
+- Helmet.js for security headers (HSTS, X-Frame-Options, etc.)
 - Use strong, unique passwords for your master account
 
 ## 📝 API Endpoints
@@ -206,7 +233,9 @@ The following environment variables can be configured in `docker-compose.yml`:
 | POST | `/api/auth/login` | Login user |
 | GET | `/api/auth/verify` | Verify token |
 | GET | `/api/auth/me` | Get current user profile |
-| PUT | `/api/auth/profile` | Update user profile (email) |
+| PUT | `/api/auth/profile` | Update user profile (email, password) |
+| POST | `/api/auth/forgot-password` | Request password reset |
+| POST | `/api/auth/reset-password` | Reset password with token |
 | POST | `/api/auth/mfa/setup` | Generate MFA QR code |
 | POST | `/api/auth/mfa/enable` | Enable MFA with verification code |
 | POST | `/api/auth/mfa/disable` | Disable MFA with verification code |
