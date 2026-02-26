@@ -26,7 +26,16 @@ function Dashboard({ token, setToken, role = 'user' }) {
   const [expandedFolders, setExpandedFolders] = useState({});
   const [newFolder, setNewFolder] = useState({ name: '', parent_id: '', team_id: '' });
   const [editFolder, setEditFolder] = useState({ id: '', name: '', parent_id: '', team_id: '' });
+  const [notifications, setNotifications] = useState([]);
   const navigate = useNavigate();
+
+  const showNotification = (message, type = 'success') => {
+    const id = Date.now();
+    setNotifications(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setNotifications(prev => prev.filter(n => n.id !== id));
+    }, 4000);
+  };
 
   useEffect(() => {
     console.log('useEffect triggered, selectedFolder:', selectedFolder);
@@ -96,8 +105,9 @@ function Dashboard({ token, setToken, role = 'user' }) {
       setNewFolder({ name: '', parent_id: '', team_id: '' });
       setShowFolderModal(false);
       loadFolders();
+      showNotification('Folder created successfully!');
     } catch (err) {
-      alert('Error creating folder: ' + (err.response?.data?.error || err.message));
+      showNotification('Error creating folder: ' + (err.response?.data?.error || err.message), 'error');
     }
   };
 
@@ -108,8 +118,9 @@ function Dashboard({ token, setToken, role = 'user' }) {
       if (selectedFolder === id) setSelectedFolder('');
       loadFolders();
       loadPasswords();
+      showNotification('Folder deleted successfully!');
     } catch (err) {
-      alert('Error deleting folder: ' + (err.response?.data?.error || err.message));
+      showNotification('Error deleting folder: ' + (err.response?.data?.error || err.message), 'error');
     }
   };
 
@@ -133,8 +144,9 @@ function Dashboard({ token, setToken, role = 'user' }) {
       });
       setShowEditFolderModal(false);
       loadFolders();
+      showNotification('Folder updated successfully!');
     } catch (err) {
-      alert('Error updating folder: ' + (err.response?.data?.error || err.message));
+      showNotification('Error updating folder: ' + (err.response?.data?.error || err.message), 'error');
     }
   };
 
@@ -213,7 +225,7 @@ function Dashboard({ token, setToken, role = 'user' }) {
     try {
       if (window.isSecureContext) {
         await navigator.clipboard.writeText(text);
-        alert('Copied to clipboard!');
+        showNotification('Copied to clipboard!');
       } else {
         const textArea = document.createElement('textarea');
         textArea.value = text;
@@ -225,11 +237,11 @@ function Dashboard({ token, setToken, role = 'user' }) {
         textArea.select();
         document.execCommand('copy');
         document.body.removeChild(textArea);
-        alert('Copied to clipboard!');
+        showNotification('Copied to clipboard!');
       }
     } catch (err) {
       console.error('Error copying:', err);
-      alert('Failed to copy to clipboard');
+      showNotification('Failed to copy to clipboard', 'error');
     }
   };
 
@@ -254,7 +266,7 @@ function Dashboard({ token, setToken, role = 'user' }) {
     try {
       const data = JSON.parse(importData);
       if (!Array.isArray(data) && !(data.items && Array.isArray(data.items))) {
-        alert('Invalid format. Expected an array of passwords or Bitwarden export.');
+        showNotification('Invalid format. Expected an array of passwords or Bitwarden export.', 'error');
         return;
       }
       await passwords.import(data);
@@ -262,9 +274,9 @@ function Dashboard({ token, setToken, role = 'user' }) {
       setImportData('');
       loadPasswords();
       loadFolders();
-      alert('Import successful!');
+      showNotification('Import successful!');
     } catch (err) {
-      alert('Error importing: ' + (err.response?.data?.error || err.message));
+      showNotification('Error importing: ' + (err.response?.data?.error || err.message), 'error');
     }
   };
 
@@ -293,23 +305,23 @@ function Dashboard({ token, setToken, role = 'user' }) {
       
       if (newPassword) {
         if (newPassword !== confirmPassword) {
-          alert('Passwords do not match!');
+          showNotification('Passwords do not match!', 'error');
           return;
         }
-        if (newPassword.length < 4) {
-          alert('Password must be at least 4 characters!');
+        if (newPassword.length < 8) {
+          showNotification('Password must be at least 8 characters!', 'error');
           return;
         }
         data.password = newPassword;
       }
       
       await auth.updateProfile(data);
-      alert('Profile updated successfully!');
+      showNotification('Profile updated successfully!');
       setNewPassword('');
       setConfirmPassword('');
       setShowProfileModal(false);
     } catch (err) {
-      alert('Error updating profile: ' + (err.response?.data?.error || err.message));
+      showNotification('Error updating profile: ' + (err.response?.data?.error || err.message), 'error');
     }
   };
 
@@ -318,19 +330,19 @@ function Dashboard({ token, setToken, role = 'user' }) {
       const response = await auth.mfaSetup();
       setMfaSetupData(response.data);
     } catch (err) {
-      alert('Error setting up MFA: ' + (err.response?.data?.error || err.message));
+      showNotification('Error setting up MFA: ' + (err.response?.data?.error || err.message), 'error');
     }
   };
 
   const handleMfaEnable = async () => {
     try {
       await auth.mfaEnable(mfaCode);
-      alert('MFA enabled successfully!');
+      showNotification('MFA enabled successfully!');
       setMfaSetupData(null);
       setMfaCode('');
       loadProfile();
     } catch (err) {
-      alert('Error enabling MFA: ' + (err.response?.data?.error || err.message));
+      showNotification('Error enabling MFA: ' + (err.response?.data?.error || err.message), 'error');
     }
   };
 
@@ -338,11 +350,11 @@ function Dashboard({ token, setToken, role = 'user' }) {
     if (!window.confirm('Are you sure you want to disable MFA?')) return;
     try {
       await auth.mfaDisable(mfaCode);
-      alert('MFA disabled successfully!');
+      showNotification('MFA disabled successfully!');
       setMfaCode('');
       loadProfile();
     } catch (err) {
-      alert('Error disabling MFA: ' + (err.response?.data?.error || err.message));
+      showNotification('Error disabling MFA: ' + (err.response?.data?.error || err.message), 'error');
     }
   };
 
@@ -353,6 +365,22 @@ function Dashboard({ token, setToken, role = 'user' }) {
 
   return (
     <div>
+      <div style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 9999 }}>
+        {notifications.map(n => (
+          <div key={n.id} style={{
+            background: n.type === 'error' ? '#dc3545' : '#28a745',
+            color: 'white',
+            padding: '12px 20px',
+            borderRadius: '6px',
+            marginBottom: '10px',
+            boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+            fontSize: '14px',
+            animation: 'slideIn 0.3s ease'
+          }}>
+            {n.message}
+          </div>
+        ))}
+      </div>
       <div className="header">
         <div className="header-content">
           <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
