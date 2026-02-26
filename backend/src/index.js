@@ -129,8 +129,13 @@ try {
   db.exec('ALTER TABLE cards ADD COLUMN folder_id INTEGER REFERENCES folders(id) ON DELETE SET NULL');
 } catch (e) {}
 
-app.use(cors());
-app.use(express.json({ limit: '10mb' }));
+const bcrypt = require('bcryptjs');
+const userCount = db.prepare('SELECT COUNT(*) as count FROM users').get();
+if (userCount.count === 0) {
+  const passwordHash = bcrypt.hashSync('admin', 10);
+  db.prepare('INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)').run('admin', passwordHash, 'admin');
+  console.log('Default admin user created: admin / admin');
+}
 
 app.use((req, res, next) => {
   req.db = db;
