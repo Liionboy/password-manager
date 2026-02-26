@@ -130,7 +130,7 @@ router.put('/users/:id', authenticateToken, (req, res) => {
     }
 
     const { id } = req.params;
-    const { role, password } = req.body;
+    const { role, password, email } = req.body;
     const db = req.db;
 
     const existing = db.prepare('SELECT * FROM users WHERE id = ?').get(id);
@@ -146,6 +146,10 @@ router.put('/users/:id', authenticateToken, (req, res) => {
       const bcrypt = require('bcryptjs');
       const hashedPassword = bcrypt.hashSync(password, 10);
       db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hashedPassword, id);
+    }
+
+    if (email !== undefined) {
+      db.prepare('UPDATE users SET email = ? WHERE id = ?').run(email || null, id);
     }
 
     res.json({ message: 'User updated successfully' });
@@ -177,6 +181,40 @@ router.delete('/users/:id', authenticateToken, (req, res) => {
     res.json({ message: 'User deleted' });
   } catch (error) {
     console.error('Delete user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.put('/profile', authenticateToken, (req, res) => {
+  try {
+    const db = req.db;
+    const userId = req.user.id;
+    const { email, password } = req.body;
+
+    if (email !== undefined) {
+      db.prepare('UPDATE users SET email = ? WHERE id = ?').run(email || null, userId);
+    }
+
+    if (password) {
+      const bcrypt = require('bcryptjs');
+      const hashedPassword = bcrypt.hashSync(password, 10);
+      db.prepare('UPDATE users SET password = ? WHERE id = ?').run(hashedPassword, userId);
+    }
+
+    res.json({ message: 'Profile updated successfully' });
+  } catch (error) {
+    console.error('Update profile error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/me', authenticateToken, (req, res) => {
+  try {
+    const db = req.db;
+    const user = db.prepare('SELECT id, username, role, email FROM users WHERE id = ?').get(req.user.id);
+    res.json(user);
+  } catch (error) {
+    console.error('Get profile error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

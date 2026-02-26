@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { passwords, categories, cards, folders as foldersApi, teams } from '../api';
+import { passwords, categories, cards, folders as foldersApi, teams, auth } from '../api';
 
 function Dashboard({ token, setToken, role = 'user' }) {
   const [activeTab, setActiveTab] = useState('passwords');
@@ -16,8 +16,10 @@ function Dashboard({ token, setToken, role = 'user' }) {
   const [showImportModal, setShowImportModal] = useState(false);
   const [showFolderModal, setShowFolderModal] = useState(false);
   const [showEditFolderModal, setShowEditFolderModal] = useState(false);
+  const [showProfileModal, setShowProfileModal] = useState(false);
   const [newFolder, setNewFolder] = useState({ name: '', parent_id: '', team_id: '' });
   const [editFolder, setEditFolder] = useState({ id: '', name: '', parent_id: '', team_id: '' });
+  const [profileData, setProfileData] = useState({ email: '' });
   const [importData, setImportData] = useState('');
   const [expandedFolders, setExpandedFolders] = useState({});
   const navigate = useNavigate();
@@ -267,6 +269,30 @@ function Dashboard({ token, setToken, role = 'user' }) {
     setToken(null);
   };
 
+  const loadProfile = async () => {
+    try {
+      const response = await auth.getProfile();
+      setProfileData({ email: response.data.email || '' });
+    } catch (err) {
+      console.error('Error loading profile:', err);
+    }
+  };
+
+  const handleProfileClick = () => {
+    loadProfile();
+    setShowProfileModal(true);
+  };
+
+  const handleUpdateProfile = async () => {
+    try {
+      await auth.updateProfile({ email: profileData.email });
+      alert('Profile updated successfully!');
+      setShowProfileModal(false);
+    } catch (err) {
+      alert('Error updating profile: ' + (err.response?.data?.error || err.message));
+    }
+  };
+
   const maskCardNumber = (number) => {
     if (!number) return '';
     return '**** **** **** ' + number.slice(-4);
@@ -288,6 +314,7 @@ function Dashboard({ token, setToken, role = 'user' }) {
             <h1>Password Manager</h1>
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
+            <button onClick={handleProfileClick} className="secondary">Profile</button>
             <Link to="/teams">
               <button className="secondary">Teams</button>
             </Link>
@@ -621,6 +648,34 @@ function Dashboard({ token, setToken, role = 'user' }) {
             <div className="form-actions">
               <button onClick={handleImport} className="success">Import</button>
               <button onClick={() => setShowImportModal(false)} className="secondary">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showProfileModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0, 0, 0, 0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          backdropFilter: 'blur(4px)'
+        }}>
+          <div className="form-container" style={{ maxWidth: '400px' }}>
+            <h2>My Profile</h2>
+            <div className="form-group">
+              <label>Notification Email</label>
+              <input
+                type="email"
+                value={profileData.email}
+                onChange={(e) => setProfileData({ ...profileData, email: e.target.value })}
+                placeholder="your@email.com"
+              />
+              <small style={{ color: '#64748b', fontSize: '12px', display: 'block', marginTop: '5px' }}>
+                Receive email notifications for password changes at this address
+              </small>
+            </div>
+            <div className="form-actions">
+              <button onClick={handleUpdateProfile} className="success">Save</button>
+              <button onClick={() => setShowProfileModal(false)} className="secondary">Cancel</button>
             </div>
           </div>
         </div>

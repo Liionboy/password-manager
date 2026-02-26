@@ -24,7 +24,9 @@ export const auth = {
   getUsers: () => api.get('/auth/users'),
   createUser: (data) => api.post('/auth/users', data),
   updateUser: (id, data) => api.put(`/auth/users/${id}`, data),
-  deleteUser: (id) => api.delete(`/auth/users/${id}`)
+  deleteUser: (id) => api.delete(`/auth/users/${id}`),
+  getProfile: () => api.get('/auth/me'),
+  updateProfile: (data) => api.put('/auth/profile', data)
 };
 
 export const passwords = {

@@ -193,6 +193,7 @@ router.post('/test-email', async (req, res) => {
 const sendNotification = async (db, userId, subject, body, actionType) => {
   try {
     let settings = db.prepare('SELECT * FROM settings WHERE user_id = ?').get(userId);
+    const user = db.prepare('SELECT email FROM users WHERE id = ?').get(userId);
     
     if (!settings || !settings.smtp_host) {
       const globalSettings = db.prepare('SELECT * FROM settings WHERE is_global = 1').get();
@@ -206,6 +207,9 @@ const sendNotification = async (db, userId, subject, body, actionType) => {
     if (actionType === 'add' && !settings.notify_on_add) return;
     if (actionType === 'update' && !settings.notify_on_update) return;
     if (actionType === 'delete' && !settings.notify_on_delete) return;
+
+    const recipientEmail = user?.email || settings.smtp_user;
+    if (!recipientEmail) return;
 
     const transporter = nodemailer.createTransport({
       host: settings.smtp_host,
@@ -242,7 +246,7 @@ const sendNotification = async (db, userId, subject, body, actionType) => {
 
     await transporter.sendMail({
       from: settings.smtp_from,
-      to: settings.smtp_user,
+      to: recipientEmail,
       subject: subject,
       html: `
         <!DOCTYPE html>
