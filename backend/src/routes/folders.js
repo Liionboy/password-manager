@@ -9,15 +9,31 @@ router.get('/', (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;
+    const userRole = req.user.role;
 
-    const folders = db.prepare(`
+    let teamId = null;
+    if (userRole !== 'admin') {
+      const membership = db.prepare('SELECT team_id FROM team_members WHERE user_id = ?').get(userId);
+      teamId = membership?.team_id;
+    }
+
+    let query = `
       SELECT f.*, 
         (SELECT COUNT(*) FROM passwords p WHERE p.folder_id = f.id) as password_count,
         (SELECT COUNT(*) FROM cards c WHERE c.folder_id = f.id) as card_count
       FROM folders f 
       WHERE f.user_id = ?
-      ORDER BY f.name
-    `).all(userId);
+    `;
+    const params = [userId];
+
+    if (teamId) {
+      query += ` OR f.team_id = ?`;
+      params.push(teamId);
+    }
+
+    query += ` ORDER BY f.name`;
+
+    const folders = db.prepare(query).all(...params);
 
     const folderMap = {};
     folders.forEach(f => {

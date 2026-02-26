@@ -38,6 +38,14 @@ function Team({ token }) {
   };
 
   const handleDeleteUser = async (id) => {
+    const currentUsername = localStorage.getItem('username');
+    const userToDelete = users.find(u => u.id === id);
+    
+    if (userToDelete?.username === currentUsername) {
+      alert('You cannot delete your own account!');
+      return;
+    }
+    
     if (!window.confirm('Are you sure you want to delete this user?')) return;
     
     try {
@@ -61,7 +69,7 @@ function Team({ token }) {
               <rect x="28" y="38" width="4" height="10" rx="2" fill="#0066cc"/>
               <rect x="26" y="44" width="8" height="3" rx="1.5" fill="#0066cc"/>
             </svg>
-            <h1>Team Management</h1>
+            <h1>User Management</h1>
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
             <Link to="/">

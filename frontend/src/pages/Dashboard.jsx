@@ -243,13 +243,15 @@ function Dashboard({ token, setToken, role = 'user' }) {
               <button className="secondary">Teams</button>
             </Link>
             {role === 'admin' && (
-              <Link to="/team">
-                <button className="secondary">Users</button>
-              </Link>
+              <>
+                <Link to="/team">
+                  <button className="secondary">Users</button>
+                </Link>
+                <Link to="/settings">
+                  <button className="secondary">Settings</button>
+                </Link>
+              </>
             )}
-            <Link to="/settings">
-              <button className="secondary">Settings</button>
-            </Link>
             <button onClick={handleLogout} className="secondary">Logout</button>
           </div>
         </div>

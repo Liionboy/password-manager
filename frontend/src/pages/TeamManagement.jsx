@@ -104,6 +104,18 @@ function TeamManagement({ token }) {
     }
   };
 
+  const handleDeleteTeam = async (teamId) => {
+    if (!window.confirm('Are you sure you want to delete this team? This action cannot be undone.')) return;
+    try {
+      await teams.delete(teamId);
+      setSuccess('Team deleted successfully!');
+      loadData();
+      setSelectedTeam(null);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error deleting team');
+    }
+  };
+
   const availableUsers = users.filter(u => !teamMembers.some(m => m.id === u.id));
 
   return (
@@ -246,7 +258,10 @@ function TeamManagement({ token }) {
                   </div>
                 </div>
               ) : (
-                <button onClick={() => { setError(''); setSuccess(''); setShowAddMember(true); }} className="success" style={{ marginTop: '15px' }}>Add Member</button>
+                <>
+                  <button onClick={() => { setError(''); setSuccess(''); setShowAddMember(true); }} className="success" style={{ marginTop: '15px' }}>Add Member</button>
+                  <button onClick={() => handleDeleteTeam(selectedTeam)} className="danger" style={{ marginTop: '15px', marginLeft: '10px' }}>Delete Team</button>
+                </>
               )}
 
               <button onClick={() => setSelectedTeam(null)} className="secondary" style={{ marginTop: '15px' }}>Close</button>

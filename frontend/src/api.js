@@ -66,7 +66,8 @@ export const teams = {
   join: (teamId) => api.post('/teams/join', { team_id: teamId }),
   getMembers: (teamId) => api.get(`/teams/${teamId}/members`),
   addMember: (teamId, userId, role) => api.post(`/teams/${teamId}/members`, { user_id: userId, role }),
-  removeMember: (teamId, userId) => api.delete(`/teams/${teamId}/members/${userId}`)
+  removeMember: (teamId, userId) => api.delete(`/teams/${teamId}/members/${userId}`),
+  delete: (teamId) => api.delete(`/teams/${teamId}`)
 };
 
 export const settings = {

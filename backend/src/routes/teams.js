@@ -169,4 +169,29 @@ router.post('/:id/members', (req, res) => {
   }
 });
 
+router.delete('/:id', (req, res) => {
+  try {
+    const db = req.db;
+    const userId = req.user.id;
+    const { id } = req.params;
+
+    if (req.user.role !== 'admin') {
+      const membership = db.prepare('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?').get(id, userId);
+      if (!membership || membership.role !== 'admin') {
+        return res.status(403).json({ error: 'Only team admin can delete team' });
+      }
+    }
+
+    const result = db.prepare('DELETE FROM teams WHERE id = ?').run(id);
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Team not found' });
+    }
+
+    res.json({ message: 'Team deleted successfully' });
+  } catch (error) {
+    console.error('Delete team error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;

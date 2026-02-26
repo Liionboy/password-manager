@@ -32,7 +32,7 @@ function App() {
         <Route path="/edit/:id" element={token ? <PasswordForm token={token} /> : <Navigate to="/login" />} />
         <Route path="/add-card" element={token ? <CardForm token={token} /> : <Navigate to="/login" />} />
         <Route path="/edit-card/:id" element={token ? <CardForm token={token} /> : <Navigate to="/login" />} />
-        <Route path="/settings" element={token ? <Settings token={token} /> : <Navigate to="/login" />} />
+        <Route path="/settings" element={token && role === 'admin' ? <Settings token={token} /> : <Navigate to="/" />} />
         <Route path="/team" element={token && role === 'admin' ? <Team token={token} /> : <Navigate to="/" />} />
         <Route path="/teams" element={token ? <TeamManagement token={token} /> : <Navigate to="/login" />} />
       </Routes>
