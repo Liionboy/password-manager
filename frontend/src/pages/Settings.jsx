@@ -179,6 +179,17 @@ function Settings({ token }) {
             </div>
           )}
 
+          {role !== 'admin' && formData.is_global && (
+            <div className="form-group">
+              <div style={{ padding: '10px', background: 'rgba(0, 240, 255, 0.1)', borderRadius: '8px', border: '1px solid #00f0ff' }}>
+                <strong style={{ color: '#00f0ff' }}>✓ Using Global SMTP</strong>
+                <p style={{ margin: '5px 0 0 0', fontSize: '12px', color: '#94a3b8' }}>
+                  Email notifications are configured by your administrator
+                </p>
+              </div>
+            </div>
+          )}
+
           <div className="form-group">
             <button type="button" onClick={handleTestEmail} className="secondary" disabled={testing}>
               {testing ? 'Sending...' : 'Send Test Email'}

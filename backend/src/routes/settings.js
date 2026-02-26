@@ -33,6 +33,18 @@ router.get('/', (req, res) => {
           settings.is_global = true;
         }
       }
+    } else {
+      const globalSettings = db.prepare('SELECT * FROM settings WHERE is_global = 1').get();
+      if (globalSettings && globalSettings.smtp_host && !settings.smtp_host) {
+        settings.smtp_host = globalSettings.smtp_host;
+        settings.smtp_port = globalSettings.smtp_port;
+        settings.smtp_user = globalSettings.smtp_user;
+        settings.smtp_from = globalSettings.smtp_from;
+        settings.notify_on_add = globalSettings.notify_on_add;
+        settings.notify_on_update = globalSettings.notify_on_update;
+        settings.notify_on_delete = globalSettings.notify_on_delete;
+        settings.is_global = true;
+      }
     }
 
     if (settings.smtp_password) {
