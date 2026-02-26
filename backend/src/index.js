@@ -135,33 +135,27 @@ db.exec(`
     smtp_host TEXT,
     smtp_port INTEGER,
     smtp_user TEXT,
-    smtp_pass TEXT,
+    smtp_password TEXT,
     smtp_from TEXT,
+    notify_on_add INTEGER DEFAULT 0,
+    notify_on_update INTEGER DEFAULT 0,
+    notify_on_delete INTEGER DEFAULT 0,
     is_global INTEGER DEFAULT 0,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-  );
-
-  CREATE TABLE IF NOT EXISTS shared_passwords (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    password_id INTEGER NOT NULL,
-    user_id INTEGER NOT NULL,
-    FOREIGN KEY (password_id) REFERENCES passwords(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    UNIQUE(password_id, user_id)
-  );
-
-  CREATE TABLE IF NOT EXISTS shared_cards (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    card_id INTEGER NOT NULL,
-    user_id INTEGER NOT NULL,
-    FOREIGN KEY (card_id) REFERENCES cards(id) ON DELETE CASCADE,
-    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-    UNIQUE(card_id, user_id)
   );
 `);
 
 try {
-  db.exec('ALTER TABLE passwords ADD COLUMN category_id INTEGER REFERENCES categories(id) ON DELETE SET NULL');
+  db.exec('ALTER TABLE settings ADD COLUMN smtp_password TEXT');
+} catch (e) {}
+try {
+  db.exec('ALTER TABLE settings ADD COLUMN notify_on_add INTEGER DEFAULT 0');
+} catch (e) {}
+try {
+  db.exec('ALTER TABLE settings ADD COLUMN notify_on_update INTEGER DEFAULT 0');
+} catch (e) {}
+try {
+  db.exec('ALTER TABLE settings ADD COLUMN notify_on_delete INTEGER DEFAULT 0');
 } catch (e) {}
 try {
   db.exec('ALTER TABLE passwords ADD COLUMN encrypted_password TEXT');
