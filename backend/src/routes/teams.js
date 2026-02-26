@@ -138,4 +138,35 @@ router.delete('/:id/members/:userId', (req, res) => {
   }
 });
 
+router.post('/:id/members', (req, res) => {
+  try {
+    const db = req.db;
+    const userId = req.user.id;
+    const { id } = req.params;
+    const { user_id, role = 'member' } = req.body;
+
+    const membership = db.prepare('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?').get(id, userId);
+    if (!membership || membership.role !== 'admin') {
+      return res.status(403).json({ error: 'Only team admin can add members' });
+    }
+
+    const targetUser = db.prepare('SELECT * FROM users WHERE id = ?').get(user_id);
+    if (!targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const existing = db.prepare('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?').get(id, user_id);
+    if (existing) {
+      return res.status(400).json({ error: 'User already in team' });
+    }
+
+    db.prepare('INSERT INTO team_members (team_id, user_id, role) VALUES (?, ?, ?)').run(id, user_id, role);
+
+    res.json({ message: 'Member added successfully' });
+  } catch (error) {
+    console.error('Add member error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;

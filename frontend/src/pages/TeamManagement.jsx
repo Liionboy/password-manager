@@ -11,6 +11,11 @@ function TeamManagement({ token }) {
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [isAdmin, setIsAdmin] = useState(false);
+  const [selectedTeam, setSelectedTeam] = useState(null);
+  const [teamMembers, setTeamMembers] = useState([]);
+  const [showAddMember, setShowAddMember] = useState(false);
+  const [newMemberUserId, setNewMemberUserId] = useState('');
+  const [newMemberRole, setNewMemberRole] = useState('member');
 
   useEffect(() => {
     loadData();
@@ -70,6 +75,36 @@ function TeamManagement({ token }) {
       alert(err.response?.data?.error || 'Error removing member');
     }
   };
+
+  const handleViewMembers = async (teamId) => {
+    try {
+      const members = await teams.getMembers(teamId);
+      setTeamMembers(members.data);
+      setSelectedTeam(teamId);
+      setShowAddMember(false);
+    } catch (err) {
+      alert(err.response?.data?.error || 'Error loading members');
+    }
+  };
+
+  const handleAddMember = async (teamId) => {
+    if (!newMemberUserId) {
+      setError('Please select a user');
+      return;
+    }
+    try {
+      await teams.addMember(teamId, parseInt(newMemberUserId), newMemberRole);
+      setSuccess('Member added successfully!');
+      setNewMemberUserId('');
+      setNewMemberRole('member');
+      setShowAddMember(false);
+      handleViewMembers(teamId);
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error adding member');
+    }
+  };
+
+  const availableUsers = users.filter(u => !teamMembers.some(m => m.id === u.id));
 
   return (
     <div>
@@ -131,10 +166,7 @@ function TeamManagement({ token }) {
                   </div>
                   {team.user_role === 'admin' && (
                     <div className="password-actions">
-                      <button onClick={async () => {
-                        const members = await teams.getMembers(team.id);
-                        alert(members.data.map(m => `${m.username} (${m.role})`).join('\n'));
-                      }} className="secondary">View Members</button>
+                      <button onClick={() => handleViewMembers(team.id)} className="secondary">Manage Members</button>
                     </div>
                   )}
                 </div>
@@ -154,13 +186,70 @@ function TeamManagement({ token }) {
                     <p>Members: {team.member_count}</p>
                   </div>
                   <div className="password-actions">
-                    <button onClick={async () => {
-                      const members = await teams.getMembers(team.id);
-                      alert(members.data.map(m => `${m.username} (${m.role})`).join('\n'));
-                    }} className="secondary">View Members</button>
+                    <button onClick={() => handleViewMembers(team.id)} className="secondary">Manage Members</button>
                   </div>
                 </div>
               ))}
+            </div>
+          </div>
+        )}
+
+        {selectedTeam && (
+          <div className="modal-overlay" onClick={() => setSelectedTeam(null)}>
+            <div className="form-container" onClick={e => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+              <h2>Team Members</h2>
+              {error && <p className="error">{error}</p>}
+              {success && <p className="success">{success}</p>}
+              
+              <div className="password-list" style={{ marginTop: '15px' }}>
+                {teamMembers.length === 0 ? (
+                  <p style={{ color: '#94a3b8' }}>No members in this team</p>
+                ) : (
+                  teamMembers.map(member => (
+                    <div key={member.id} className="password-card">
+                      <div className="password-info">
+                        <h3>{member.username}</h3>
+                        <p>Role: <span style={{ color: member.role === 'admin' ? '#00f0ff' : '#94a3b8' }}>{member.role}</span></p>
+                      </div>
+                      {member.role !== 'owner' && (
+                        <div className="password-actions">
+                          <button onClick={() => handleRemoveMember(selectedTeam, member.id)} className="danger">Remove</button>
+                        </div>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {showAddMember ? (
+                <div style={{ marginTop: '20px', padding: '15px', background: '#1a1a2e', borderRadius: '8px' }}>
+                  <h4>Add Member</h4>
+                  <div className="form-group">
+                    <label>Select User</label>
+                    <select value={newMemberUserId} onChange={(e) => setNewMemberUserId(e.target.value)}>
+                      <option value="">-- Select User --</option>
+                      {availableUsers.map(u => (
+                        <option key={u.id} value={u.id}>{u.username}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="form-group">
+                    <label>Role</label>
+                    <select value={newMemberRole} onChange={(e) => setNewMemberRole(e.target.value)}>
+                      <option value="member">Member</option>
+                      <option value="admin">Admin</option>
+                    </select>
+                  </div>
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '10px' }}>
+                    <button onClick={() => handleAddMember(selectedTeam)} className="success">Add</button>
+                    <button onClick={() => setShowAddMember(false)} className="secondary">Cancel</button>
+                  </div>
+                </div>
+              ) : (
+                <button onClick={() => { setError(''); setSuccess(''); setShowAddMember(true); }} className="success" style={{ marginTop: '15px' }}>Add Member</button>
+              )}
+
+              <button onClick={() => setSelectedTeam(null)} className="secondary" style={{ marginTop: '15px' }}>Close</button>
             </div>
           </div>
         )}
