@@ -6,11 +6,7 @@ const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json'
-  },
-  transformRequest: [(data) => {
-    console.log('Axios sending:', JSON.stringify(data));
-    return data;
-  }]
+  }
 });
 
 api.interceptors.request.use((config) => {
@@ -22,8 +18,8 @@ api.interceptors.request.use((config) => {
 });
 
 export const auth = {
-  register: (username, password) => api.post('/auth/register', { username, password }),
-  login: (username, password) => api.post('/auth/login', { username, password }),
+  register: (username, password) => api.post('/auth/register', JSON.stringify({ username, password }), { headers: { 'Content-Type': 'application/json' } }),
+  login: (username, password) => api.post('/auth/login', JSON.stringify({ username, password }), { headers: { 'Content-Type': 'application/json' } }),
   verify: () => api.get('/auth/verify'),
   getUsers: () => api.get('/auth/users'),
   createUser: (data) => api.post('/auth/users', data),
