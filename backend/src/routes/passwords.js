@@ -44,13 +44,20 @@ router.get('/', (req, res) => {
     if (folderId && folderId !== '' && folderId !== 'null' && folderId !== 'undefined') {
       query += ` AND p.folder_id = ?`;
       params.push(parseInt(folderId));
+      console.log('Showing passwords in folder:', parseInt(folderId));
     } else {
       query += ` AND p.folder_id IS NULL`;
+      console.log('Showing passwords with NO folder');
     }
 
     query += ` ORDER BY is_shared ASC, p.created_at DESC`;
 
+    console.log('SQL query:', query);
+    console.log('Params:', params);
+    
     const passwords = db.prepare(query).all(...params);
+    console.log('Total passwords returned:', passwords.length);
+    console.log('Password folder_ids:', passwords.map(p => p.folder_id));
 
     const decrypted = passwords.map(p => ({
       ...p,
