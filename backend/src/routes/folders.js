@@ -12,10 +12,8 @@ router.get('/', (req, res) => {
     const userRole = req.user.role;
 
     let teamId = null;
-    if (userRole !== 'admin') {
-      const membership = db.prepare('SELECT team_id FROM team_members WHERE user_id = ?').get(userId);
-      teamId = membership?.team_id;
-    }
+    const membership = db.prepare('SELECT team_id FROM team_members WHERE user_id = ?').get(userId);
+    teamId = membership?.team_id;
 
     let query = `
       SELECT f.*, 
@@ -61,25 +59,34 @@ router.post('/', (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;
-    const { name, parent_id } = req.body;
+    const userRole = req.user.role;
+    const { name, parent_id, team_id } = req.body;
 
     if (!name) {
       return res.status(400).json({ error: 'Folder name is required' });
     }
 
+    let allowedTeamId = null;
+    if (team_id && userRole === 'admin') {
+      const team = db.prepare('SELECT * FROM teams WHERE id = ?').get(team_id);
+      if (team) {
+        allowedTeamId = team_id;
+      }
+    }
+
     if (parent_id) {
-      const existing = db.prepare('SELECT * FROM folders WHERE id = ? AND user_id = ?').get(parent_id, userId);
+      const existing = db.prepare('SELECT * FROM folders WHERE id = ? AND (user_id = ? OR team_id = ?)').get(parent_id, userId, allowedTeamId);
       if (!existing) {
         return res.status(400).json({ error: 'Parent folder not found' });
       }
     }
 
     const result = db.prepare(`
-      INSERT INTO folders (user_id, name, parent_id)
-      VALUES (?, ?, ?)
-    `).run(userId, name, parent_id || null);
+      INSERT INTO folders (user_id, name, parent_id, team_id)
+      VALUES (?, ?, ?, ?)
+    `).run(userId, name, parent_id || null, allowedTeamId);
 
-    res.status(201).json({ id: result.lastInsertRowid, name, parent_id: parent_id || null });
+    res.status(201).json({ id: result.lastInsertRowid, name, parent_id: parent_id || null, team_id: allowedTeamId });
   } catch (error) {
     console.error('Create folder error:', error);
     res.status(500).json({ error: 'Internal server error' });

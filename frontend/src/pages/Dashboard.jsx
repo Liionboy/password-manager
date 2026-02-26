@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { passwords, categories, cards, folders as foldersApi } from '../api';
+import { passwords, categories, cards, folders as foldersApi, teams } from '../api';
 
 function Dashboard({ token, setToken, role = 'user' }) {
   const [activeTab, setActiveTab] = useState('passwords');
@@ -8,13 +8,14 @@ function Dashboard({ token, setToken, role = 'user' }) {
   const [cardList, setCardList] = useState([]);
   const [categoryList, setCategoryList] = useState([]);
   const [folderList, setFolderList] = useState([]);
+  const [teamList, setTeamList] = useState([]);
   const [search, setSearch] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('');
   const [selectedFolder, setSelectedFolder] = useState('');
   const [showExportModal, setShowExportModal] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [showFolderModal, setShowFolderModal] = useState(false);
-  const [newFolder, setNewFolder] = useState({ name: '', parent_id: '' });
+  const [newFolder, setNewFolder] = useState({ name: '', parent_id: '', team_id: '' });
   const [importData, setImportData] = useState('');
   const [expandedFolders, setExpandedFolders] = useState({});
   const navigate = useNavigate();
@@ -24,7 +25,17 @@ function Dashboard({ token, setToken, role = 'user' }) {
     loadCards();
     loadCategories();
     loadFolders();
-  }, [search, selectedCategory, selectedFolder, activeTab]);
+    if (role === 'admin') loadTeams();
+  }, [search, selectedCategory, selectedFolder, activeTab, role]);
+
+  const loadTeams = async () => {
+    try {
+      const response = await teams.getAllAdmin();
+      setTeamList(response.data);
+    } catch (err) {
+      console.error('Error loading teams:', err);
+    }
+  };
 
   const loadPasswords = async () => {
     try {
@@ -67,9 +78,10 @@ function Dashboard({ token, setToken, role = 'user' }) {
     try {
       await foldersApi.create({
         name: newFolder.name,
-        parent_id: newFolder.parent_id || null
+        parent_id: newFolder.parent_id || null,
+        team_id: newFolder.team_id || null
       });
-      setNewFolder({ name: '', parent_id: '' });
+      setNewFolder({ name: '', parent_id: '', team_id: '' });
       setShowFolderModal(false);
       loadFolders();
     } catch (err) {
@@ -464,6 +476,20 @@ function Dashboard({ token, setToken, role = 'user' }) {
                 ))}
               </select>
             </div>
+            {role === 'admin' && (
+              <div className="form-group">
+                <label>Team (optional)</label>
+                <select
+                  value={newFolder.team_id}
+                  onChange={(e) => setNewFolder({ ...newFolder, team_id: e.target.value })}
+                >
+                  <option value="">Personal (no team)</option>
+                  {teamList.map(t => (
+                    <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </div>
+            )}
             <div className="form-actions">
               <button onClick={handleCreateFolder} className="success">Create</button>
               <button onClick={() => setShowFolderModal(false)} className="secondary">Cancel</button>
