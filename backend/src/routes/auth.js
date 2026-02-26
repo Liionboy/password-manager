@@ -118,7 +118,7 @@ router.get('/users', authenticateToken, (req, res) => {
     }
     
     const db = req.db;
-    const users = db.prepare('SELECT id, username, role, created_at FROM users ORDER BY created_at DESC').all();
+    const users = db.prepare('SELECT id, username, role, created_at, failed_login_attempts, locked_until FROM users ORDER BY created_at DESC').all();
     res.json(users);
   } catch (error) {
     console.error('Get users error:', error);
