@@ -193,12 +193,16 @@ router.post('/test-email', async (req, res) => {
 const sendNotification = async (db, userId, subject, body, actionType) => {
   console.log('sendNotification called for user', userId, 'subject:', subject);
   try {
+    console.log('Getting user and settings for userId:', userId);
     let settings = db.prepare('SELECT * FROM settings WHERE user_id = ?').get(userId);
     const user = db.prepare('SELECT email FROM users WHERE id = ?').get(userId);
+    console.log('User email:', user?.email, 'Settings:', settings);
     
     let isGlobal = false;
     if (!settings || !settings.smtp_host) {
+      console.log('No personal settings, checking global');
       const globalSettings = db.prepare('SELECT * FROM settings WHERE is_global = 1').get();
+      console.log('Global settings:', globalSettings);
       if (globalSettings && globalSettings.smtp_host) {
         settings = globalSettings;
         isGlobal = true;
