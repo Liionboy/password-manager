@@ -6,7 +6,11 @@ const api = axios.create({
   baseURL: API_URL,
   headers: {
     'Content-Type': 'application/json'
-  }
+  },
+  transformRequest: [(data) => {
+    console.log('Axios sending:', JSON.stringify(data));
+    return data;
+  }]
 });
 
 api.interceptors.request.use((config) => {
