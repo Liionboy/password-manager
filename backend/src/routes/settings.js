@@ -191,6 +191,7 @@ router.post('/test-email', async (req, res) => {
 });
 
 const sendNotification = async (db, userId, subject, body, actionType) => {
+  console.log('sendNotification called for user', userId, 'subject:', subject);
   try {
     let settings = db.prepare('SELECT * FROM settings WHERE user_id = ?').get(userId);
     const user = db.prepare('SELECT email FROM users WHERE id = ?').get(userId);
