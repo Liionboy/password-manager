@@ -70,12 +70,20 @@ router.post('/', (req, res) => {
       return res.status(400).json({ error: 'Title and password are required' });
     }
 
+    let teamId = null;
+    if (folder_id) {
+      const folder = db.prepare('SELECT team_id FROM folders WHERE id = ?').get(folder_id);
+      if (folder && folder.team_id) {
+        teamId = folder.team_id;
+      }
+    }
+
     const encryptedPassword = encrypt(password);
     
     const result = db.prepare(`
-      INSERT INTO passwords (user_id, title, username, encrypted_password, url, folder_id, category_id, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(userId, title, username || null, encryptedPassword, url || null, folder_id || null, category_id || null, notes || null);
+      INSERT INTO passwords (user_id, title, username, encrypted_password, url, folder_id, category_id, notes, team_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(userId, title, username || null, encryptedPassword, url || null, folder_id || null, category_id || null, notes || null, teamId);
 
     sendNotification(db, userId, 'New Password Added', `A new password "${title}" was added to your vault.`, 'add');
 

@@ -14,12 +14,19 @@ router.get('/', (req, res) => {
     const { search, category_id } = req.query;
 
     let query = `
-      SELECT c.*, cat.name as category_name 
+      SELECT c.*, cat.name as category_name, f.name as folder_name, t.name as team_name,
+        CASE WHEN c.user_id = ? THEN 0 ELSE 1 END as is_shared,
+        u.username as owner_username
       FROM cards c 
       LEFT JOIN categories cat ON c.category_id = cat.id 
-      WHERE c.user_id = ?
+      LEFT JOIN folders f ON c.folder_id = f.id
+      LEFT JOIN users u ON c.user_id = u.id
+      LEFT JOIN teams t ON c.team_id = t.id
+      WHERE c.user_id = ? 
+         OR c.id IN (SELECT card_id FROM shared_cards WHERE user_id = ?)
+         OR c.team_id IN (SELECT team_id FROM team_members WHERE user_id = ?)
     `;
-    const params = [userId];
+    const params = [userId, userId, userId, userId];
 
     if (search) {
       query += ` AND (c.title LIKE ? OR c.cardholder_name LIKE ?)`;
@@ -32,7 +39,7 @@ router.get('/', (req, res) => {
       params.push(category_id);
     }
 
-    query += ` ORDER BY c.created_at DESC`;
+    query += ` ORDER BY is_shared ASC, c.created_at DESC`;
 
     const cards = db.prepare(query).all(...params);
 
@@ -53,19 +60,27 @@ router.post('/', (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;
-    const { title, cardholder_name, card_number, expiry_month, expiry_year, cvv, brand, category_id, notes } = req.body;
+    const { title, cardholder_name, card_number, expiry_month, expiry_year, cvv, brand, category_id, notes, folder_id } = req.body;
 
     if (!title || !card_number) {
       return res.status(400).json({ error: 'Title and card number are required' });
+    }
+
+    let teamId = null;
+    if (folder_id) {
+      const folder = db.prepare('SELECT team_id FROM folders WHERE id = ?').get(folder_id);
+      if (folder && folder.team_id) {
+        teamId = folder.team_id;
+      }
     }
 
     const encryptedCardNumber = encrypt(card_number);
     const encryptedCvv = cvv ? encrypt(cvv) : null;
     
     const result = db.prepare(`
-      INSERT INTO cards (user_id, title, cardholder_name, encrypted_card_number, expiry_month, expiry_year, cvv, brand, category_id, notes)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(userId, title, cardholder_name || null, encryptedCardNumber, expiry_month || null, expiry_year || null, encryptedCvv, brand || null, category_id || null, notes || null);
+      INSERT INTO cards (user_id, title, cardholder_name, encrypted_card_number, expiry_month, expiry_year, cvv, brand, category_id, notes, team_id, folder_id)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(userId, title, cardholder_name || null, encryptedCardNumber, expiry_month || null, expiry_year || null, encryptedCvv, brand || null, category_id || null, notes || null, teamId, folder_id || null);
 
     sendNotification(db, userId, 'New Card Added', `A new card "${title}" was added to your vault.`, 'add');
 
