@@ -24,6 +24,8 @@ function Dashboard({ token, setToken, role = 'user' }) {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [importData, setImportData] = useState('');
   const [expandedFolders, setExpandedFolders] = useState({});
+  const [newFolder, setNewFolder] = useState({ name: '', parent_id: '', team_id: '' });
+  const [editFolder, setEditFolder] = useState({ id: '', name: '', parent_id: '', team_id: '' });
   const navigate = useNavigate();
 
   useEffect(() => {
