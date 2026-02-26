@@ -8,6 +8,7 @@ const passwordRoutes = require('./routes/passwords');
 const cardRoutes = require('./routes/cards');
 const settingsRoutes = require('./routes/settings');
 const folderRoutes = require('./routes/folders');
+const teamRoutes = require('./routes/teams');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -115,6 +116,23 @@ db.exec(`
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     UNIQUE(card_id, user_id)
   );
+
+  CREATE TABLE IF NOT EXISTS teams (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+  );
+
+  CREATE TABLE IF NOT EXISTS team_members (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    team_id INTEGER NOT NULL,
+    user_id INTEGER NOT NULL,
+    role TEXT DEFAULT 'member' CHECK(role IN ('admin', 'member')),
+    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+    UNIQUE(team_id, user_id)
+  );
 `);
 
 try {
@@ -127,6 +145,22 @@ try {
 
 try {
   db.exec('ALTER TABLE cards ADD COLUMN folder_id INTEGER REFERENCES folders(id) ON DELETE SET NULL');
+} catch (e) {}
+
+try {
+  db.exec('ALTER TABLE users ADD COLUMN team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL');
+} catch (e) {}
+
+try {
+  db.exec('ALTER TABLE passwords ADD COLUMN team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL');
+} catch (e) {}
+
+try {
+  db.exec('ALTER TABLE cards ADD COLUMN team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL');
+} catch (e) {}
+
+try {
+  db.exec('ALTER TABLE folders ADD COLUMN team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL');
 } catch (e) {}
 
 const bcrypt = require('bcryptjs');
@@ -148,6 +182,7 @@ app.use('/api/passwords', passwordRoutes);
 app.use('/api/cards', cardRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/folders', folderRoutes);
+app.use('/api/teams', teamRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });

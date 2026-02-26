@@ -239,9 +239,12 @@ function Dashboard({ token, setToken, role = 'user' }) {
             <h1>Password Manager</h1>
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
+            <Link to="/teams">
+              <button className="secondary">Teams</button>
+            </Link>
             {role === 'admin' && (
               <Link to="/team">
-                <button className="secondary">Team</button>
+                <button className="secondary">Users</button>
               </Link>
             )}
             <Link to="/settings">

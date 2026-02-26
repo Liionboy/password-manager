@@ -7,6 +7,7 @@ import PasswordForm from './pages/PasswordForm';
 import CardForm from './pages/CardForm';
 import Settings from './pages/Settings';
 import Team from './pages/Team';
+import TeamManagement from './pages/TeamManagement';
 
 function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
@@ -33,6 +34,7 @@ function App() {
         <Route path="/edit-card/:id" element={token ? <CardForm token={token} /> : <Navigate to="/login" />} />
         <Route path="/settings" element={token ? <Settings token={token} /> : <Navigate to="/login" />} />
         <Route path="/team" element={token && role === 'admin' ? <Team token={token} /> : <Navigate to="/" />} />
+        <Route path="/teams" element={token ? <TeamManagement token={token} /> : <Navigate to="/login" />} />
       </Routes>
     </BrowserRouter>
   );

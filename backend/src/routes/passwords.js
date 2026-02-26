@@ -14,16 +14,19 @@ router.get('/', (req, res) => {
     const { search, category_id, folder_id } = req.query;
 
     let query = `
-      SELECT p.*, c.name as category_name, f.name as folder_name,
+      SELECT p.*, c.name as category_name, f.name as folder_name, t.name as team_name,
         CASE WHEN p.user_id = ? THEN 0 ELSE 1 END as is_shared,
         u.username as owner_username
       FROM passwords p 
       LEFT JOIN categories c ON p.category_id = c.id 
       LEFT JOIN folders f ON p.folder_id = f.id
       LEFT JOIN users u ON p.user_id = u.id
-      WHERE p.user_id = ? OR p.id IN (SELECT password_id FROM shared_passwords WHERE user_id = ?)
+      LEFT JOIN teams t ON p.team_id = t.id
+      WHERE p.user_id = ? 
+         OR p.id IN (SELECT password_id FROM shared_passwords WHERE user_id = ?)
+         OR p.team_id IN (SELECT team_id FROM team_members WHERE user_id = ?)
     `;
-    const params = [userId, userId, userId];
+    const params = [userId, userId, userId, userId];
 
     if (search) {
       query += ` AND (p.title LIKE ? OR p.username LIKE ? OR p.url LIKE ?)`;

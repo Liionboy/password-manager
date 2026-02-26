@@ -59,6 +59,15 @@ export const folders = {
   delete: (id) => api.delete(`/folders/${id}`)
 };
 
+export const teams = {
+  getAll: () => api.get('/teams'),
+  getAllAdmin: () => api.get('/teams/all'),
+  create: (name) => api.post('/teams', { name }),
+  join: (teamId) => api.post('/teams/join', { team_id: teamId }),
+  getMembers: (teamId) => api.get(`/teams/${teamId}/members`),
+  removeMember: (teamId, userId) => api.delete(`/teams/${teamId}/members/${userId}`)
+};
+
 export const settings = {
   get: () => api.get('/settings'),
   save: (data) => api.put('/settings', data),
