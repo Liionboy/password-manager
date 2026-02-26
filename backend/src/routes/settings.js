@@ -72,8 +72,9 @@ router.put('/', (req, res) => {
       const globalSettings = db.prepare('SELECT * FROM settings WHERE is_global = 1').get();
       if (globalSettings) {
         let updateSql = `UPDATE settings SET 
-          smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_from = ?`;
-        let params = [smtp_host, smtp_port, smtp_user, smtp_from];
+          smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_from = ?,
+          notify_on_add = ?, notify_on_update = ?, notify_on_delete = ?`;
+        let params = [smtp_host, smtp_port, smtp_user, smtp_from, notify_on_add ? 1 : 0, notify_on_update ? 1 : 0, notify_on_delete ? 1 : 0];
 
         if (smtp_password && smtp_password !== '***hidden***') {
           updateSql += ', smtp_password = ?';
@@ -83,8 +84,8 @@ router.put('/', (req, res) => {
         updateSql += ' WHERE is_global = 1';
         db.prepare(updateSql).run(...params);
       } else {
-        db.prepare(`INSERT INTO settings (user_id, smtp_host, smtp_port, smtp_user, smtp_password, smtp_from, is_global)
-          VALUES (NULL, ?, ?, ?, ?, ?, 1)`).run(smtp_host, smtp_port, smtp_user, smtp_password, smtp_from);
+        db.prepare(`INSERT INTO settings (user_id, smtp_host, smtp_port, smtp_user, smtp_password, smtp_from, notify_on_add, notify_on_update, notify_on_delete, is_global)
+          VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, 1)`).run(smtp_host, smtp_port, smtp_user, smtp_password, smtp_from, notify_on_add ? 1 : 0, notify_on_update ? 1 : 0, notify_on_delete ? 1 : 0);
       }
     }
 
