@@ -19,7 +19,7 @@ router.get('/', (req, res) => {
     }
 
     if (req.user.role === 'admin') {
-      const globalSettings = db.prepare('SELECT * FROM settings WHERE user_id = 0').get();
+      const globalSettings = db.prepare('SELECT * FROM settings WHERE is_global = 1').get();
       if (globalSettings) {
         settings = { ...settings, is_global: globalSettings.is_global };
         if (globalSettings.smtp_host && !settings.smtp_host) {
@@ -57,7 +57,7 @@ router.put('/', (req, res) => {
     }
 
     if (is_global) {
-      const globalSettings = db.prepare('SELECT * FROM settings WHERE user_id = 0').get();
+      const globalSettings = db.prepare('SELECT * FROM settings WHERE is_global = 1').get();
       if (globalSettings) {
         let updateSql = `UPDATE settings SET 
           smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_from = ?`;
@@ -68,11 +68,11 @@ router.put('/', (req, res) => {
           params.push(smtp_password);
         }
 
-        updateSql += ' WHERE user_id = 0';
+        updateSql += ' WHERE is_global = 1';
         db.prepare(updateSql).run(...params);
       } else {
         db.prepare(`INSERT INTO settings (user_id, smtp_host, smtp_port, smtp_user, smtp_password, smtp_from, is_global)
-          VALUES (0, ?, ?, ?, ?, ?, 1)`).run(smtp_host, smtp_port, smtp_user, smtp_password, smtp_from);
+          VALUES (NULL, ?, ?, ?, ?, ?, 1)`).run(smtp_host, smtp_port, smtp_user, smtp_password, smtp_from);
       }
     }
 
@@ -183,7 +183,7 @@ const sendNotification = async (db, userId, subject, body, actionType) => {
     let settings = db.prepare('SELECT * FROM settings WHERE user_id = ?').get(userId);
     
     if (!settings || !settings.smtp_host) {
-      const globalSettings = db.prepare('SELECT * FROM settings WHERE user_id = 0').get();
+      const globalSettings = db.prepare('SELECT * FROM settings WHERE is_global = 1').get();
       if (globalSettings && globalSettings.smtp_host) {
         settings = globalSettings;
       } else {

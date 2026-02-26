@@ -85,7 +85,7 @@ db.exec(`
 
   CREATE TABLE IF NOT EXISTS settings (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    user_id INTEGER NOT NULL UNIQUE,
+    user_id INTEGER,
     smtp_host TEXT,
     smtp_port INTEGER,
     smtp_user TEXT,
@@ -97,8 +97,6 @@ db.exec(`
     is_global INTEGER DEFAULT 0,
     FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
   );
-
-  db.exec('INSERT OR IGNORE INTO settings (user_id, is_global) VALUES (0, 1)');
 
   CREATE TABLE IF NOT EXISTS shared_passwords (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -164,6 +162,10 @@ try {
 
 try {
   db.exec('ALTER TABLE folders ADD COLUMN team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL');
+} catch (e) {}
+
+try {
+  db.exec('INSERT OR IGNORE INTO settings (user_id, is_global) VALUES (NULL, 1)');
 } catch (e) {}
 
 const bcrypt = require('bcryptjs');
