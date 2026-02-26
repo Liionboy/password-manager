@@ -51,7 +51,11 @@ router.get('/', (req, res) => {
       params.push(parseInt(folderId));
       console.log('Showing passwords in folder:', parseInt(folderId));
     } else {
-      query += ` AND (p.folder_id IS NULL OR p.folder_id = 0)`;
+      // Debug: show all passwords and their folder_ids
+      const allPasswords = db.prepare('SELECT id, user_id, folder_id, title FROM passwords').all();
+      console.log('All passwords in DB:', allPasswords);
+      
+      query += ` AND p.folder_id IS NULL`;
       console.log('Showing passwords with NO folder');
     }
 
