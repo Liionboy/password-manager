@@ -137,6 +137,7 @@ if (userCount.count === 0) {
   console.log('Default admin user created: admin / admin');
 }
 
+app.use(express.json({ limit: '10mb' }));
 app.use((req, res, next) => {
   req.db = db;
   next();
