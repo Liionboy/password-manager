@@ -18,20 +18,7 @@ const PORT = process.env.PORT || 5000;
 app.set('trust proxy', 1);
 app.use(helmet());
 
-const generalLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000,
-  max: 150,
-  message: { error: 'Too many requests, please try again later.' }
-});
-
-const authLimiter = rateLimit({
-  windowMs: 5 * 60 * 1000,
-  max: 20,
-  skipSuccessfulRequests: true,
-  message: { error: 'Too many login attempts, please try again later.' }
-});
-
-app.use(generalLimiter);
+// Rate limiting disabled for development
 
 const dataDir = path.join(__dirname, 'data');
 if (!fs.existsSync(dataDir)) {
@@ -182,7 +169,7 @@ app.use((req, res, next) => {
   next();
 });
 
-app.use('/api/auth', authLimiter, authRoutes);
+app.use('/api/auth', authRoutes);
 app.use('/api/passwords', passwordRoutes);
 app.use('/api/cards', cardRoutes);
 app.use('/api/settings', settingsRoutes);
