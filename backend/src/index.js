@@ -19,13 +19,13 @@ app.set('trust proxy', 1);
 app.use(helmet());
 
 const generalLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
+  windowMs: 5 * 60 * 1000,
   max: 150,
   message: { error: 'Too many requests, please try again later.' }
 });
 
 const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
+  windowMs: 5 * 60 * 1000,
   max: 20,
   skipSuccessfulRequests: true,
   message: { error: 'Too many login attempts, please try again later.' }
