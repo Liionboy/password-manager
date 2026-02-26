@@ -139,6 +139,9 @@ function Login({ setToken, setRole }) {
       <p style={{ marginTop: '15px' }}>
         Don't have an account? <Link to="/register">Register</Link>
       </p>
+      <p style={{ marginTop: '10px' }}>
+        Forgot your password? <Link to="/forgot-password">Recover</Link>
+      </p>
     </div>
   );
 }
