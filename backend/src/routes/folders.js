@@ -67,9 +67,10 @@ router.post('/', async (req, res) => {
     }
 
     let allowedTeamId = null;
-    if (team_id && userRole === 'admin') {
-      const team = await db.prepare('SELECT * FROM teams WHERE id = ?').get(team_id);
-      if (team) {
+    if (team_id) {
+      // Check if user is member of this team
+      const membership = await db.prepare('SELECT * FROM team_members WHERE team_id = $1 AND user_id = $2').get(team_id, userId);
+      if (membership || userRole === 'admin') {
         allowedTeamId = team_id;
       }
     }

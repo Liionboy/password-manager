@@ -466,11 +466,11 @@ function Dashboard({ token, setToken, role = 'user' }) {
           <div className="actions-bar">
             <div>
               {activeTab === 'passwords' ? (
-                <Link to="/add">
+                <Link to={selectedFolder ? `/add?folder_id=${selectedFolder}` : `/add`}>
                   <button className="success">+ Add Password</button>
                 </Link>
               ) : (
-                <Link to="/add-card">
+                <Link to={selectedFolder ? `/add-card?folder_id=${selectedFolder}` : `/add-card`}>
                   <button className="success">+ Add Card</button>
                 </Link>
               )}
