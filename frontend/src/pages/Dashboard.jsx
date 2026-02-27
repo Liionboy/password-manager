@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import * as speakeasy from 'speakeasy';
 import { passwords, categories, cards, folders as foldersApi, teams, auth } from '../api';
 
 function Dashboard({ token, setToken, role = 'user' }) {
@@ -327,8 +328,10 @@ function Dashboard({ token, setToken, role = 'user' }) {
 
   const handleMfaSetup = async () => {
     try {
-      const response = await auth.mfaSetup();
-      setMfaSetupData({ qrCode: response.data.qrCode });
+      const userId = localStorage.getItem('userId') || localStorage.getItem('username');
+      const secret = speakeasy.generateSecret({ name: `PasswordManager-${userId}` });
+      const response = await auth.mfaSetup(secret.base32, secret.otpauth_url);
+      setMfaSetupData({ qrCode: response.data.qrCode, secret: secret.base32 });
     } catch (err) {
       showNotification('Error setting up MFA: ' + (err.response?.data?.error || err.message), 'error');
     }
@@ -793,6 +796,12 @@ function Dashboard({ token, setToken, role = 'user' }) {
                     Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
                   </p>
                   <img src={mfaSetupData.qrCode} alt="QR Code" style={{ maxWidth: '250px', display: 'block', margin: '15px auto' }} />
+                  {mfaSetupData.secret && (
+                    <div style={{ background: '#1e293b', padding: '15px', borderRadius: '8px', marginTop: '15px', wordBreak: 'break-all' }}>
+                      <p style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '8px' }}>Or enter this secret manually:</p>
+                      <strong style={{ color: '#00f0ff', fontSize: '14px' }}>{mfaSetupData.secret}</strong>
+                    </div>
+                  )}
                   <div className="form-group" style={{ marginTop: '20px' }}>
                     <label>Enter verification code</label>
                     <input
