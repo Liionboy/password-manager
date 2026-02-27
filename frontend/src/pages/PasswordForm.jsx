@@ -1,26 +1,31 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { passwords, categories, folders as foldersApi } from '../api';
 
 function PasswordForm({ token }) {
   const { id } = useParams();
-  const [searchParams] = useSearchParams();
-  const folderIdFromUrl = searchParams.get('folder_id');
   const navigate = useNavigate();
   const isEdit = Boolean(id);
+
   const [formData, setFormData] = useState({
     title: '',
     username: '',
     password: '',
     url: '',
-    folder_id: folderIdFromUrl || '',
+    folder_id: '',
     category_id: '',
     notes: ''
   });
   const [categoryList, setCategoryList] = useState([]);
   const [folderList, setFolderList] = useState([]);
   const [showPassword, setShowPassword] = useState(false);
-  const [genOptions, setGenOptions] = useState({ length: 16, uppercase: true, lowercase: true, numbers: true, symbols: true });
+  const [genOptions, setGenOptions] = useState({
+    length: 16,
+    uppercase: true,
+    lowercase: true,
+    numbers: true,
+    symbols: true
+  });
   const [newCategory, setNewCategory] = useState('');
   const [error, setError] = useState('');
 
@@ -99,7 +104,6 @@ function PasswordForm({ token }) {
       } else {
         await passwords.create(data);
       }
-
       navigate('/');
     } catch (err) {
       setError(err.response?.data?.error || 'Error saving password');
@@ -130,7 +134,9 @@ function PasswordForm({ token }) {
     <div className="container">
       <div className="form-container">
         <h1>{isEdit ? 'Edit Password' : 'Add Password'}</h1>
+        
         {error && <p className="error">{error}</p>}
+
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <label>Title *</label>
@@ -143,6 +149,7 @@ function PasswordForm({ token }) {
               placeholder="e.g., Gmail, Facebook"
             />
           </div>
+
           <div className="form-group">
             <label>Username</label>
             <input
@@ -153,6 +160,7 @@ function PasswordForm({ token }) {
               placeholder="e.g., john@example.com"
             />
           </div>
+
           <div className="form-group">
             <label>Password *</label>
             <div className="password-display">
@@ -163,14 +171,11 @@ function PasswordForm({ token }) {
                 onChange={handleChange}
                 required
               />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="secondary"
-              >
+              <button type="button" onClick={() => setShowPassword(!showPassword)} className="secondary">
                 {showPassword ? 'Hide' : 'Show'}
               </button>
             </div>
+            
             <div style={{ marginTop: '15px', padding: '15px', background: 'rgba(17, 24, 39, 0.6)', border: '1px solid #1e293b', borderRadius: '8px' }}>
               <p style={{ marginBottom: '15px', fontWeight: '500', color: '#00f0ff', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '1px' }}>Generate Password:</p>
               <div className="checkbox-group">
@@ -190,44 +195,112 @@ function PasswordForm({ token }) {
                     type="checkbox"
                     checked={genOptions.uppercase}
                     onChange={(e) => setGenOptions({ ...genOptions, uppercase: e.target.checked })}
-                  /> A-Z
+                  />
+                  A-Z
                 </label>
                 <label style={{ color: '#94a3b8' }}>
                   <input
                     type="checkbox"
                     checked={genOptions.lowercase}
                     onChange={(e) => setGenOptions({ ...genOptions, lowercase: e.target.checked })}
-                  /> a-z
+                  />
+                  a-z
                 </label>
                 <label style={{ color: '#94a3b8' }}>
                   <input
                     type="checkbox"
                     checked={genOptions.numbers}
                     onChange={(e) => setGenOptions({ ...genOptions, numbers: e.target.checked })}
-                  /> 0-9
+                  />
+                  0-9
                 </label>
                 <label style={{ color: '#94a3b8' }}>
                   <input
                     type="checkbox"
                     checked={genOptions.symbols}
                     onChange={(e) => setGenOptions({ ...genOptions, symbols: e.target.checked })}
-                  /> !@#
+                  />
+                  !@#
                 </label>
               </div>
-              <button
-                type="button"
-                onClick={handleGenerate}
-                className="success"
-                style={{ marginTop: '15px' }}
-              >
+              <button type="button" onClick={handleGenerate} className="success" style={{ marginTop: '15px' }}>
                 Generate
               </button>
             </div>
           </div>
+
           <div className="form-group">
             <label>URL</label>
             <input
               type="url"
               name="url"
               value={formData.url}
-              onChange={handle
+              onChange={handleChange}
+              placeholder="https://example.com"
+            />
+          </div>
+
+          <div className="form-group">
+            <label>Folder</label>
+            <select
+              name="folder_id"
+              value={formData.folder_id}
+              onChange={handleChange}
+              style={{ width: '100%' }}
+            >
+              <option value="">No Folder</option>
+              {folderList.map(f => (
+                <option key={f.id} value={f.id}>{f.name}</option>
+              ))}
+            </select>
+          </div>
+
+          <div className="form-group">
+            <label>Category</label>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <select
+                name="category_id"
+                value={formData.category_id}
+                onChange={handleChange}
+                style={{ flex: 1 }}
+              >
+                <option value="">No Category</option>
+                {categoryList.map(cat => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+              </select>
+              {formData.category_id && (
+                <button type="button" onClick={() => { if (window.confirm('Delete this category?')) { categories.delete(formData.category_id).then(() => { setFormData({ ...formData, category_id: '' }); loadCategories(); }).catch(err => alert(err.response?.data?.error || 'Error deleting category')); } }} className="danger" style={{ padding: '8px 12px' }}>X</button>
+              )}
+              <input
+                type="text"
+                placeholder="New category"
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
+                style={{ width: '150px' }}
+              />
+              <button type="button" onClick={handleAddCategory} className="secondary">Add</button>
+            </div>
+          </div>
+
+          <div className="form-group">
+            <label>Notes</label>
+            <textarea
+              name="notes"
+              value={formData.notes}
+              onChange={handleChange}
+              placeholder="Additional notes..."
+            />
+          </div>
+
+          <div className="form-actions">
+            <button type="submit" className="success">{isEdit ? 'Update' : 'Save'}</button>
+            <button type="button" onClick={() => navigate('/')} className="secondary">Cancel</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+export default PasswordForm;
