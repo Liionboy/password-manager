@@ -410,6 +410,9 @@ function Dashboard({ token, setToken, role = 'user' }) {
               </>
             )}
             <button onClick={handleLogout} className="secondary">Logout</button>
+            <span style={{ color: '#94a3b8', fontSize: '14px', marginLeft: '10px' }}>
+              {localStorage.getItem('username')}
+            </span>
           </div>
         </div>
       </div>
