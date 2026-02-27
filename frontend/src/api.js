@@ -57,7 +57,7 @@ export const passwords = {
 
 export const categories = {
   getAll: () => api.get('/passwords/categories'),
-  create: (name, isGlobal = false) => api.post('/passwords/categories', { name, is_global: isGlobal }),
+  create: (name, isGlobal = true) => api.post('/passwords/categories', { name, is_global: isGlobal }),
   delete: (id) => api.delete(`/passwords/categories/${id}`)
 };
 

@@ -278,7 +278,7 @@ router.get('/categories', async (req, res) => {
   try {
     const db = req.db;
 
-    const categories = await db.prepare('SELECT * FROM categories ORDER BY name').all();
+    const categories = await db.prepare('SELECT * FROM categories WHERE user_id IS NULL ORDER BY name').all();
     res.json(categories);
   } catch (error) {
     console.error('Get categories error:', error);
