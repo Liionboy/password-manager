@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import speakeasy from 'speakeasy';
 import { passwords, categories, cards, folders as foldersApi, teams, auth } from '../api';
 
 function Dashboard({ token, setToken, role = 'user' }) {
@@ -327,8 +328,10 @@ function Dashboard({ token, setToken, role = 'user' }) {
 
   const handleMfaSetup = async () => {
     try {
-      const response = await auth.mfaSetup();
-      setMfaSetupData(response.data);
+      const userId = localStorage.getItem('userId');
+      const secret = speakeasy.generateSecret({ name: `PasswordManager-${userId}` });
+      const response = await auth.mfaSetup(secret.base32, secret.otpauth_url);
+      setMfaSetupData({ qrCode: response.data.qrCode, secret: secret.base32 });
     } catch (err) {
       showNotification('Error setting up MFA: ' + (err.response?.data?.error || err.message), 'error');
     }

@@ -25,6 +25,7 @@ function Login({ setToken, setRole }) {
         localStorage.setItem('token', response.data.accessToken); localStorage.setItem('refreshToken', response.data.refreshToken);
         localStorage.setItem('role', response.data.role || 'user');
         localStorage.setItem('username', username);
+        localStorage.setItem('userId', response.data.userId);
         setToken(response.data.accessToken);
         if (setRole) setRole(response.data.role || 'user');
       }
@@ -43,6 +44,7 @@ function Login({ setToken, setRole }) {
       localStorage.setItem('token', response.data.accessToken); localStorage.setItem('refreshToken', response.data.refreshToken);
       localStorage.setItem('role', response.data.role || 'user');
       localStorage.setItem('username', username);
+      localStorage.setItem('userId', response.data.userId);
       setToken(response.data.accessToken);
       if (setRole) setRole(response.data.role || 'user');
     } catch (err) {
