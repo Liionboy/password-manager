@@ -266,7 +266,42 @@ const sendNotification = async (db, userId, subject, body, actionType) => {
       from: settings.smtp_from,
       to: recipientEmail,
       subject: subject,
-      html: `
+      html: actionType === 'reset' ? `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f4f4; margin: 0; padding: 20px; }
+            .container { max-width: 600px; margin: 0 auto; background: #ffffff; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+            .header { background: linear-gradient(135deg, #0066cc, #0052a3); color: white; padding: 30px; text-align: center; }
+            .header h1 { margin: 0; font-size: 24px; }
+            .content { padding: 30px; color: #333; }
+            .content p { margin: 10px 0; line-height: 1.6; }
+            .btn { display: inline-block; padding: 15px 30px; background: linear-gradient(135deg, #0066cc, #0052a3); color: white; text-decoration: none; border-radius: 8px; font-weight: bold; margin: 20px 0; }
+            .btn:hover { background: linear-gradient(135deg, #0052a3, #004080); }
+            .footer { background: #f8f9fa; padding: 20px; text-align: center; color: #666; font-size: 12px; }
+          </style>
+        </head>
+        <body>
+          <div class="container">
+            <div class="header">
+              <h1>🔐 Password Manager</h1>
+            </div>
+            <div class="content">
+              <p>Hello,</p>
+              <p>You requested a password reset for your account.</p>
+              <p>Click the button below to reset your password:</p>
+              <a href="${body}" class="btn">Reset Password</a>
+              <p style="font-size: 12px; color: #666;">This link will expire in 1 hour.</p>
+              <p style="font-size: 12px; color: #999;">If you did not request this, please ignore this email.</p>
+            </div>
+            <div class="footer">
+              <p>This is an automated message from your Password Manager</p>
+            </div>
+          </div>
+        </body>
+        </html>
+      ` : `
         <!DOCTYPE html>
         <html>
         <head>

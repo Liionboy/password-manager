@@ -434,7 +434,8 @@ router.post('/forgot-password', async (req, res) => {
     await db.query('UPDATE users SET reset_token = $1, reset_expires = $2 WHERE id = $3', [resetToken, resetExpires.toISOString(), user.id]);
 
     const { sendNotification } = require('./settings');
-    await sendNotification(db, user.id, 'Password Reset', `Click here to reset your password: https://password.homelocal.work/reset-password?token=${resetToken}&username=${username}`, 'reset');
+    const resetLink = `https://password.homelocal.work/reset-password?token=${resetToken}&username=${username}`;
+    await sendNotification(db, user.id, 'Password Reset', resetLink, 'reset');
 
     res.json({ message: 'If the username exists, a reset email will be sent' });
   } catch (error) {
