@@ -24,9 +24,9 @@ function Register({ setToken, setRole }) {
 
     try {
       const response = await auth.register(username, password);
-      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('token', response.data.accessToken); localStorage.setItem('refreshToken', response.data.refreshToken);
       localStorage.setItem('role', response.data.role || 'user');
-      setToken(response.data.token);
+      setToken(response.data.accessToken);
       if (setRole) setRole(response.data.role || 'user');
     } catch (err) {
       setError(err.response?.data?.error || 'Registration failed');

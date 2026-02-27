@@ -22,10 +22,10 @@ function Login({ setToken, setRole }) {
         setTempToken(response.data.tempToken);
         localStorage.setItem('tempToken', response.data.tempToken);
       } else {
-        localStorage.setItem('token', response.data.token);
+        localStorage.setItem('token', response.data.accessToken); localStorage.setItem('refreshToken', response.data.refreshToken);
         localStorage.setItem('role', response.data.role || 'user');
         localStorage.setItem('username', username);
-        setToken(response.data.token);
+        setToken(response.data.accessToken);
         if (setRole) setRole(response.data.role || 'user');
       }
     } catch (err) {
@@ -40,10 +40,10 @@ function Login({ setToken, setRole }) {
     try {
       const response = await auth.mfaVerifyTemp(mfaCode);
       localStorage.removeItem('tempToken');
-      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('token', response.data.accessToken); localStorage.setItem('refreshToken', response.data.refreshToken);
       localStorage.setItem('role', response.data.role || 'user');
       localStorage.setItem('username', username);
-      setToken(response.data.token);
+      setToken(response.data.accessToken);
       if (setRole) setRole(response.data.role || 'user');
     } catch (err) {
       setError(err.response?.data?.error || 'MFA verification failed');
