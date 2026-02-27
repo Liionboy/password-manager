@@ -412,17 +412,15 @@ router.post('/mfa/setup', authenticateToken, async (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;
-    const { secret, otpauth_url } = req.body;
 
-    if (!secret || !otpauth_url) {
-      return res.status(400).json({ error: 'Secret and otpauth_url are required' });
-    }
-
+    const speakeasy = require('speakeasy');
     const qrcode = require('qrcode');
 
-    await db.query('UPDATE users SET mfa_secret = $1 WHERE id = $2', [secret, userId]);
+    const secret = speakeasy.generateSecret({ name: `PasswordManager-${userId}` });
 
-    const qrCodeUrl = await qrcode.toDataURL(otpauth_url);
+    await db.query('UPDATE users SET mfa_secret = $1 WHERE id = $2', [secret.base32, userId]);
+
+    const qrCodeUrl = await qrcode.toDataURL(secret.otpauth_url);
 
     res.json({
       qrCode: qrCodeUrl
