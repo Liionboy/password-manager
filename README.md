@@ -2,7 +2,7 @@
 
 A secure, self-hosted password manager application built with React, Node.js, and PostgreSQL - all containerized with Docker.
 
-![Version](https://img.shields.io/badge/version-2.0.0-blue)
+![Version](https://img.shields.io/badge/version-2.3.4-blue)
 ![Docker](https://img.shields.io/badge/Docker-ready-blueviolet)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -19,7 +19,7 @@ A secure, self-hosted password manager application built with React, Node.js, an
 - **Rate Limiting** - Protection against brute force attacks
 - **Security Headers** - Helmet.js for enhanced security headers
 - **Password Generator** - Customizable password generator (length, uppercase, lowercase, numbers, symbols)
-- **Categories** - Organize your passwords and cards with custom categories
+- **Categories** - Organize your passwords and cards with custom categories (global - visible to all users)
 - **Folders** - Organize passwords and cards in nested folders
 - **Search** - Real-time search across all your passwords and cards
 - **Import/Export** - Export passwords to JSON and import from other password managers (including Bitwarden)
@@ -129,7 +129,7 @@ http://localhost:1532
 ### Admin Features
 
 The first registered user becomes the admin. Admin capabilities:
-- **Users** page - Create, edit (change role), and delete users
+- **Users** page - Create, edit (change role), reset password, and delete users
 - **Teams** page - Create teams, add/remove members, delete teams
 - **Settings** page - Configure SMTP email notifications
 - **Team folders** - Assign folders to teams for team visibility
@@ -213,13 +213,14 @@ The following environment variables can be configured in `docker-compose.yml`:
 | `DB_USER` | PostgreSQL user | `postgres` |
 | `DB_PASSWORD` | PostgreSQL password | `postgres` |
 | `DB_NAME` | PostgreSQL database name | `passwordmanager` |
+| `BASE_URL` | Base URL for password reset links | `http://localhost:5173` |
 
 > **Security Note:** Change the default `JWT_SECRET` and `ENCRYPTION_KEY` values in production!
 
 ## 🔒 Security Considerations
 
 - All passwords and card numbers are encrypted using AES-256 before storage
-- JWT tokens expire after 24 hours (MFA temp tokens after 5 minutes)
+- JWT tokens expire after 15 minutes (MFA temp tokens after 5 minutes)
 - Passwords and card data are never stored in plain text
 - PostgreSQL database is stored in a Docker volume for persistence
 - Password strength validation (minimum 8 chars + 3 character types)
@@ -297,6 +298,7 @@ The following environment variables can be configured in `docker-compose.yml`:
 | POST | `/api/auth/users` | Create user (admin only) |
 | PUT | `/api/auth/users/:id` | Update user role (admin only) |
 | DELETE | `/api/auth/users/:id` | Delete user (admin only) |
+| POST | `/api/auth/users/:id/reset-password` | Reset user password (admin only) |
 
 ## 🐳 Docker Commands
 
