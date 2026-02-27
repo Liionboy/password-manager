@@ -57,7 +57,7 @@ export const passwords = {
 
 export const categories = {
   getAll: () => api.get('/passwords/categories'),
-  create: (name) => api.post('/passwords/categories', { name }),
+  create: (name, teamId = null) => api.post('/passwords/categories', { name, team_id: teamId }),
   delete: (id) => api.delete(`/passwords/categories/${id}`)
 };
 

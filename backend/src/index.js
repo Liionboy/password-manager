@@ -125,7 +125,9 @@ const initDB = async () => {
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL,
         name VARCHAR(255) NOT NULL,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+        team_id INTEGER,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
       )
     `);
 

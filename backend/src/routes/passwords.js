@@ -279,7 +279,22 @@ router.get('/categories', async (req, res) => {
     const db = req.db;
     const userId = req.user.id;
 
-    const categories = await db.prepare('SELECT * FROM categories WHERE user_id = $1 ORDER BY name').all(userId);
+    const teamMembership = await db.prepare(`
+      SELECT team_id FROM team_members WHERE user_id = $1
+    `).all(userId);
+    const teamIds = teamMembership.map(t => t.team_id);
+
+    let categories;
+    if (teamIds.length > 0) {
+      const placeholders = teamIds.map((_, i) => `$${i + 1}`).join(',');
+      categories = await db.prepare(`
+        SELECT * FROM categories 
+        WHERE user_id = $${teamIds.length + 1} OR team_id IN (${placeholders})
+        ORDER BY name
+      `).all(...teamIds, userId);
+    } else {
+      categories = await db.prepare('SELECT * FROM categories WHERE user_id = $1 OR team_id IS NULL ORDER BY name').all(userId);
+    }
     res.json(categories);
   } catch (error) {
     console.error('Get categories error:', error);
@@ -291,15 +306,20 @@ router.post('/categories', async (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;
-    const { name } = req.body;
+    const { name, team_id } = req.body;
 
     if (!name) {
       return res.status(400).json({ error: 'Category name is required' });
     }
 
-    const result = await db.prepare('INSERT INTO categories (user_id, name) VALUES ($1, $2)').run(userId, name);
+    let result;
+    if (team_id) {
+      result = await db.prepare('INSERT INTO categories (user_id, name, team_id) VALUES ($1, $2, $3)').run(userId, name, team_id);
+    } else {
+      result = await db.prepare('INSERT INTO categories (user_id, name) VALUES ($1, $2)').run(userId, name);
+    }
 
-    res.status(201).json({ id: result.lastInsertRowid, user_id: userId, name });
+    res.status(201).json({ id: result.lastInsertRowid, user_id: userId, name, team_id: team_id || null });
   } catch (error) {
     console.error('Create category error:', error);
     res.status(500).json({ error: 'Internal server error' });
