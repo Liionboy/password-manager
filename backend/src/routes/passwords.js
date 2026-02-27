@@ -43,14 +43,15 @@ router.get('/', async (req, res) => {
     }
 
     const folderId = folder_id;
+    const showAllFolders = all === 'true' || all === true;
+    const showNoFolder = folderId === undefined;
+    const showSpecificFolder = folderId && folderId !== '' && folderId !== 'null' && folderId !== 'undefined';
     
-    if (all === 'true' || all === true) {
-      // Get all passwords without folder filtering
-    } else if (folderId && folderId !== '' && folderId !== 'null' && folderId !== 'undefined') {
+    if (showSpecificFolder) {
       query += ` AND p.folder_id = $${params.length + 1}`;
       params.push(parseInt(folderId));
-    } else if (folderId === undefined) {
-      // "All Items" shows only passwords without a folder
+    } else if (showNoFolder && !category_id) {
+      // Only show passwords without folder when no category is selected
       query += ` AND p.folder_id IS NULL`;
     }
 
