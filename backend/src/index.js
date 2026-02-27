@@ -40,14 +40,18 @@ const initDB = async () => {
         failed_login_attempts INTEGER DEFAULT 0,
         locked_until TIMESTAMP,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
+      )
+    `);
 
+    await db.query(`
       CREATE TABLE IF NOT EXISTS teams (
         id SERIAL PRIMARY KEY,
         name VARCHAR(255) NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-      );
+      )
+    `);
 
+    await db.query(`
       CREATE TABLE IF NOT EXISTS team_members (
         id SERIAL PRIMARY KEY,
         team_id INTEGER NOT NULL,
@@ -57,8 +61,24 @@ const initDB = async () => {
         FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         UNIQUE(team_id, user_id)
-      );
+      )
+    `);
 
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS folders (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        name VARCHAR(255) NOT NULL,
+        parent_id INTEGER,
+        team_id INTEGER,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (parent_id) REFERENCES folders(id) ON DELETE CASCADE,
+        FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
+      )
+    `);
+
+    await db.query(`
       CREATE TABLE IF NOT EXISTS passwords (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL,
@@ -75,8 +95,10 @@ const initDB = async () => {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL,
         FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
-      );
+      )
+    `);
 
+    await db.query(`
       CREATE TABLE IF NOT EXISTS cards (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL,
@@ -95,27 +117,19 @@ const initDB = async () => {
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         FOREIGN KEY (folder_id) REFERENCES folders(id) ON DELETE SET NULL,
         FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
-      );
+      )
+    `);
 
+    await db.query(`
       CREATE TABLE IF NOT EXISTS categories (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL,
         name VARCHAR(255) NOT NULL,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-      );
+      )
+    `);
 
-      CREATE TABLE IF NOT EXISTS folders (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL,
-        name VARCHAR(255) NOT NULL,
-        parent_id INTEGER,
-        team_id INTEGER,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        FOREIGN KEY (parent_id) REFERENCES folders(id) ON DELETE CASCADE,
-        FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
-      );
-
+    await db.query(`
       CREATE TABLE IF NOT EXISTS settings (
         id SERIAL PRIMARY KEY,
         user_id INTEGER,
@@ -129,8 +143,10 @@ const initDB = async () => {
         notify_on_delete INTEGER DEFAULT 0,
         is_global INTEGER DEFAULT 0,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-      );
+      )
+    `);
 
+    await db.query(`
       CREATE TABLE IF NOT EXISTS shared_passwords (
         id SERIAL PRIMARY KEY,
         password_id INTEGER NOT NULL,
@@ -138,8 +154,10 @@ const initDB = async () => {
         FOREIGN KEY (password_id) REFERENCES passwords(id) ON DELETE CASCADE,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         UNIQUE(password_id, user_id)
-      );
+      )
+    `);
 
+    await db.query(`
       CREATE TABLE IF NOT EXISTS shared_cards (
         id SERIAL PRIMARY KEY,
         card_id INTEGER NOT NULL,
@@ -147,7 +165,7 @@ const initDB = async () => {
         FOREIGN KEY (card_id) REFERENCES cards(id) ON DELETE CASCADE,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         UNIQUE(card_id, user_id)
-      );
+      )
     `);
 
     await db.query(`
