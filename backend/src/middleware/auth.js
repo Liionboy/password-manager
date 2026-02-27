@@ -1,5 +1,8 @@
 const jwt = require('jsonwebtoken');
 const JWT_SECRET = process.env.JWT_SECRET;
+const REFRESH_SECRET = process.env.REFRESH_SECRET || JWT_SECRET;
+const JWT_EXPIRY = process.env.JWT_EXPIRY || '15m';
+const REFRESH_EXPIRY = process.env.REFRESH_EXPIRY || '7d';
 
 if (!JWT_SECRET) {
   console.error('ERROR: JWT_SECRET environment variable is not set!');
@@ -16,19 +19,30 @@ function authenticateToken(req, res, next) {
 
   jwt.verify(token, JWT_SECRET, (err, user) => {
     if (err) {
-      return res.status(403).json({ error: 'Invalid or expired token' });
+      if (err.name === 'TokenExpiredError') {
+        return res.status(401).json({ error: 'Token expired', expired: true });
+      }
+      return res.status(403).json({ error: 'Invalid token' });
     }
     req.user = user;
     next();
   });
 }
 
-function generateToken(user) {
-  return jwt.sign(
+function generateTokens(user) {
+  const accessToken = jwt.sign(
     { id: user.id, username: user.username, role: user.role || 'user' },
     JWT_SECRET,
-    { expiresIn: '24h' }
+    { expiresIn: JWT_EXPIRY }
   );
+  
+  const refreshToken = jwt.sign(
+    { id: user.id, username: user.username },
+    REFRESH_SECRET,
+    { expiresIn: REFRESH_EXPIRY }
+  );
+  
+  return { accessToken, refreshToken, expiresIn: JWT_EXPIRY };
 }
 
 function generateTempToken(user) {
@@ -39,4 +53,27 @@ function generateTempToken(user) {
   );
 }
 
-module.exports = { authenticateToken, generateToken, generateTempToken, JWT_SECRET };
+async function refreshAccessToken(refreshToken) {
+  return new Promise((resolve, reject) => {
+    jwt.verify(refreshToken, REFRESH_SECRET, (err, user) => {
+      if (err) {
+        reject(new Error('Invalid refresh token'));
+      } else {
+        const newAccessToken = jwt.sign(
+          { id: user.id, username: user.username, role: user.role || 'user' },
+          JWT_SECRET,
+          { expiresIn: JWT_EXPIRY }
+        );
+        resolve({ accessToken: newAccessToken, expiresIn: JWT_EXPIRY });
+      }
+    });
+  });
+}
+
+module.exports = { 
+  authenticateToken, 
+  generateTokens, 
+  generateTempToken, 
+  refreshAccessToken,
+  JWT_SECRET 
+};

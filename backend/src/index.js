@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 const Database = require('./db');
+const { createAuditLogger } = require('./middleware/audit');
 const authRoutes = require('./routes/auth');
 const passwordRoutes = require('./routes/passwords');
 const cardRoutes = require('./routes/cards');
@@ -173,6 +174,32 @@ const initDB = async () => {
     `);
 
     await db.query(`
+      CREATE TABLE IF NOT EXISTS audit_logs (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER,
+        action VARCHAR(100) NOT NULL,
+        resource VARCHAR(255),
+        details JSONB,
+        ip_address VARCHAR(50),
+        user_agent TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+      )
+    `);
+
+    await db.query(`
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id);
+    `);
+    
+    await db.query(`
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs(action);
+    `);
+    
+    await db.query(`
+      CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at);
+    `);
+
+    await db.query(`
       INSERT INTO settings (user_id, is_global) 
       VALUES (NULL, 1) 
       ON CONFLICT DO NOTHING
@@ -202,6 +229,9 @@ app.use((req, res, next) => {
   req.db = db;
   next();
 });
+
+// Attach audit logger to all requests
+app.use(createAuditLogger(db));
 
 app.use('/api/auth', authRoutes);
 app.use('/api/passwords', passwordRoutes);

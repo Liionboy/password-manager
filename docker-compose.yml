@@ -6,14 +6,10 @@ services:
     container_name: password-manager-backend
     ports:
       - "5000:5000"
+    env_file:
+      - .env
     environment:
       - NODE_ENV=production
-      - JWT_SECRET=__PUNE_AICI_JWT_SECRET__
-      - ENCRYPTION_KEY=__PUNE_AICI_ENCRYPTION_KEY__
-      - DB_HOST=postgres
-      - DB_USER=postgres
-      - DB_PASSWORD=postgres
-      - DB_NAME=passwordmanager
     restart: unless-stopped
     networks:
       - password-manager-network

@@ -1,6 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
-const { authenticateToken, generateToken, generateTempToken } = require('../middleware/auth');
+const { authenticateToken, generateTokens, generateTempToken, refreshAccessToken } = require('../middleware/auth');
+const { AuditActions } = require('../middleware/audit');
 
 const router = express.Router();
 
@@ -39,14 +40,30 @@ router.post('/register', async (req, res) => {
 
     const passwordHash = await bcrypt.hash(password, 10);
     
+    // First user becomes admin ONLY if ALLOW_FIRST_ADMIN is explicitly set
     const userCount = await db.query('SELECT COUNT(*) as count FROM users');
-    const role = parseInt(userCount.rows[0].count) === 0 ? 'admin' : 'user';
+    const allowFirstAdmin = process.env.ALLOW_FIRST_ADMIN === 'true';
+    const isFirstUser = parseInt(userCount.rows[0].count) === 0;
+    const role = (isFirstUser && allowFirstAdmin) ? 'admin' : 'user';
     
     const result = await db.query('INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3) RETURNING id', [username, passwordHash, role]);
 
-    const token = generateToken({ id: result.rows[0].id, username, role });
+    const tokens = generateTokens({ id: result.rows[0].id, username, role });
+    
+    // Log audit
+    await req.audit(AuditActions.USER_CREATED, { 
+      resource: `user:${result.rows[0].id}`,
+      username,
+      role 
+    });
 
-    res.status(201).json({ message: 'User created successfully', token, userId: result.rows[0].id, username, role });
+    res.status(201).json({ 
+      message: 'User created successfully', 
+      ...tokens,
+      userId: result.rows[0].id, 
+      username, 
+      role 
+    });
   } catch (error) {
     console.error('Register error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -84,13 +101,29 @@ router.post('/login', async (req, res) => {
       if (attempts >= 5) {
         const lockUntil = new Date(Date.now() + 15 * 60 * 1000);
         await db.query('UPDATE users SET failed_login_attempts = $1, locked_until = $2 WHERE id = $3', [attempts, lockUntil.toISOString(), user.id]);
+        await req.audit(AuditActions.ACCOUNT_LOCKED, { 
+          resource: `user:${user.id}`,
+          username,
+          attempts 
+        });
         return res.status(423).json({ error: 'Too many failed attempts. Account locked for 15 minutes' });
       }
       await db.query('UPDATE users SET failed_login_attempts = $1 WHERE id = $2', [attempts, user.id]);
+      await req.audit(AuditActions.LOGIN_FAILED, { 
+        resource: `user:${user.id}`,
+        username,
+        attempts,
+        reason: 'invalid_password'
+      });
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
     await db.query('UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1', [user.id]);
+    
+    await req.audit(AuditActions.LOGIN_SUCCESS, { 
+      resource: `user:${user.id}`,
+      username 
+    });
 
     if (user.mfa_enabled && user.mfa_secret) {
       return res.json({ 
@@ -99,9 +132,15 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    const token = generateToken(user);
+    const tokens = generateTokens(user);
 
-    res.json({ message: 'Login successful', token, userId: user.id, username: user.username, role: user.role });
+    res.json({ 
+      message: 'Login successful', 
+      ...tokens,
+      userId: user.id, 
+      username: user.username, 
+      role: user.role 
+    });
   } catch (error) {
     console.error('Login error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -141,8 +180,14 @@ router.post('/mfa/verify-temp', async (req, res) => {
       return res.status(401).json({ error: 'Invalid MFA code' });
     }
 
-    const token = generateToken(user);
-    res.json({ message: 'Login successful', token, userId: user.id, username: user.username, role: user.role });
+    const tokens = generateTokens(user);
+    res.json({ 
+      message: 'Login successful', 
+      ...tokens,
+      userId: user.id, 
+      username: user.username, 
+      role: user.role 
+    });
   } catch (error) {
     console.error('MFA verify error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -437,6 +482,44 @@ router.post('/mfa/disable', authenticateToken, async (req, res) => {
     console.error('MFA disable error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
+});
+
+router.post('/refresh', async (req, res) => {
+  try {
+    const { refreshToken } = req.body;
+
+    if (!refreshToken) {
+      return res.status(400).json({ error: 'Refresh token is required' });
+    }
+
+    const tokens = await refreshAccessToken(refreshToken);
+    
+    // Decode token to get user info for audit
+    const jwt = require('jsonwebtoken');
+    const decoded = jwt.decode(refreshToken);
+    if (decoded && decoded.id) {
+      await req.audit(AuditActions.TOKEN_REFRESHED, { 
+        resource: `user:${decoded.id}` 
+      });
+    }
+    
+    res.json(tokens);
+  } catch (error) {
+    console.error('Refresh token error:', error.message);
+    res.status(401).json({ error: 'Invalid or expired refresh token' });
+  }
+});
+
+router.post('/logout', authenticateToken, async (req, res) => {
+  // Log audit
+  await req.audit(AuditActions.LOGOUT, { 
+    resource: `user:${req.user.id}`,
+    username: req.user.username 
+  });
+  
+  // In a production setup, you could add the refresh token to a blacklist
+  // For now, the client just needs to discard both tokens
+  res.json({ message: 'Logged out successfully' });
 });
 
 router.post('/forgot-password', async (req, res) => {
