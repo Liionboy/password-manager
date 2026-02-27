@@ -51,8 +51,8 @@ router.get('/', async (req, res) => {
       query += ` AND c.folder_id = $${params.length + 1}`;
       params.push(parseInt(folderId));
     } else if (!showAll && !category_id) {
-      // Only show cards without folder when not loading all and no category is selected
-      query += ` AND c.folder_id IS NULL`;
+      // Show personal cards without folder AND all team cards
+      query += ` AND (c.folder_id IS NULL OR c.team_id IN (SELECT team_id FROM team_members WHERE user_id = $1))`;
     }
 
     query += ` ORDER BY is_shared ASC, c.created_at DESC`;

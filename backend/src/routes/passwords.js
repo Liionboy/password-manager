@@ -54,8 +54,8 @@ router.get('/', async (req, res) => {
       query += ` AND p.folder_id = $${params.length + 1}`;
       params.push(parseInt(folderId));
     } else if (!showAll && !category_id) {
-      // Only show passwords without folder when not loading all and no category is selected
-      query += ` AND p.folder_id IS NULL`;
+      // Show personal passwords without folder AND all team passwords
+      query += ` AND (p.folder_id IS NULL OR p.team_id IN (SELECT team_id FROM team_members WHERE user_id = $1))`;
     }
 
     query += ` ORDER BY is_shared ASC, p.created_at DESC`;
