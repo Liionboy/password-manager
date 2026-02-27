@@ -31,7 +31,8 @@ router.get('/', async (req, res) => {
       LEFT JOIN teams t ON p.team_id = t.id
       WHERE (p.user_id = $1 
           OR p.id IN (SELECT password_id FROM shared_passwords WHERE user_id = $1)
-          OR p.team_id IN (SELECT team_id FROM team_members WHERE user_id = $1))
+          OR p.team_id IN (SELECT team_id FROM team_members WHERE user_id = $1)
+          OR u.id IN (SELECT user_id FROM team_members WHERE team_id IN (SELECT team_id FROM team_members WHERE user_id = $1)))
     `;
     const params = [userId];
 
@@ -54,8 +55,8 @@ router.get('/', async (req, res) => {
       query += ` AND p.folder_id = $${params.length + 1}`;
       params.push(parseInt(folderId));
     } else if (!showAll && !category_id) {
-      // Show personal passwords without folder AND all team passwords
-      query += ` AND (p.folder_id IS NULL OR p.team_id IN (SELECT team_id FROM team_members WHERE user_id = $1))`;
+      // Show passwords without folder (All Items view)
+      query += ` AND p.folder_id IS NULL`;
     }
 
     query += ` ORDER BY is_shared ASC, p.created_at DESC`;
