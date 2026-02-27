@@ -171,9 +171,9 @@ router.delete('/:id', async (req, res) => {
     const userId = req.user.id;
     const { id } = req.params;
 
-    const existing = await db.prepare('SELECT p.*, f.name as folder_name FROM passwords p LEFT JOIN folders f ON p.folder_id = f.id WHERE p.id = $1 AND p.user_id = $2').get(id, userId);
+    const existing = await db.prepare('SELECT p.*, f.name as folder_name FROM passwords p LEFT JOIN folders f ON p.folder_id = f.id WHERE p.id = $1').get(id);
 
-    const result = await db.prepare('DELETE FROM passwords WHERE id = $1 AND user_id = $2').run(id, userId);
+    const result = await db.prepare('DELETE FROM passwords WHERE id = $1').run(id);
 
     if (result.changes === 0) {
       return res.status(404).json({ error: 'Password not found' });
