@@ -25,8 +25,15 @@ const db = new Database({
   port: 5432
 });
 
-const initDB = async () => {
-  try {
+const sleep = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+
+const initDB = async (retries = 10) => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      console.log(`Initializing database (attempt ${i + 1}/${retries})...`);
+      
+      // Test connection first
+      await db.query('SELECT 1');
     await db.query(`
       CREATE TABLE IF NOT EXISTS users (
         id SERIAL PRIMARY KEY,
@@ -219,8 +226,16 @@ const initDB = async () => {
     }
 
     console.log('Database initialized successfully');
-  } catch (error) {
-    console.error('Database initialization error:', error);
+    } catch (error) {
+      console.error('Database initialization error:', error.message);
+      if (i < retries - 1) {
+        console.log(`Retrying in 3 seconds...`);
+        await sleep(3000);
+      } else {
+        console.error('Failed to initialize database after all retries. Exiting...');
+        process.exit(1);
+      }
+    }
   }
 };
 
