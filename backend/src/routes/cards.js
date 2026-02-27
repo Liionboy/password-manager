@@ -39,13 +39,15 @@ router.get('/', async (req, res) => {
       params.push(parseInt(category_id));
     }
 
-    const folderId = folder_id === '' || folder_id === 'null' || !folder_id ? null : folder_id;
+    const folderId = folder_id;
     
-    if (folderId) {
+    if (folderId && folderId !== '' && folderId !== 'null' && folderId !== 'undefined') {
       query += ` AND c.folder_id = $${params.length + 1}`;
       params.push(parseInt(folderId));
+    } else if (folderId === undefined) {
+      // "All Items" shows only cards without a folder
+      query += ` AND c.folder_id IS NULL`;
     }
-    // Don't filter by folder_id if not specified - show all cards
 
     query += ` ORDER BY is_shared ASC, c.created_at DESC`;
 
