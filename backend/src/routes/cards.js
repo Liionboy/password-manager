@@ -176,12 +176,16 @@ router.delete('/:id', async (req, res) => {
     const { id } = req.params;
 
     const existing = await db.prepare('SELECT c.*, f.name as folder_name FROM cards c LEFT JOIN folders f ON c.folder_id = f.id WHERE c.id = $1').get(id);
-
-    const result = await db.prepare('DELETE FROM cards WHERE id = $1').run(id);
-
-    if (result.changes === 0) {
+    if (!existing) {
       return res.status(404).json({ error: 'Card not found' });
     }
+
+    const canDelete = existing.user_id === userId || (existing.team_id && await db.prepare('SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2').get(existing.team_id, userId));
+    if (!canDelete) {
+      return res.status(403).json({ error: 'You can only delete cards from your team' });
+    }
+
+    const result = await db.prepare('DELETE FROM cards WHERE id = $1').run(id);
 
     const folderInfo = existing?.folder_name ? ` from folder "${existing.folder_name}"` : '';
     await sendNotification(db, userId, 'Card Deleted', `A card was deleted from your vault${folderInfo}.`, 'delete');
