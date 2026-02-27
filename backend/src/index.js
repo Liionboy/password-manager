@@ -131,6 +131,8 @@ const initDB = async () => {
       )
     `);
 
+    await db.query(`ALTER TABLE categories ALTER COLUMN user_id DROP NOT NULL`).catch(() => {});
+
     await db.query(`
       CREATE TABLE IF NOT EXISTS settings (
         id SERIAL PRIMARY KEY,
