@@ -277,9 +277,8 @@ router.post('/import', async (req, res) => {
 router.get('/categories', async (req, res) => {
   try {
     const db = req.db;
-    const userId = req.user.id;
 
-    const categories = await db.prepare('SELECT * FROM categories WHERE user_id IS NULL OR user_id = $1 ORDER BY name').all(userId);
+    const categories = await db.prepare('SELECT * FROM categories ORDER BY name').all();
     res.json(categories);
   } catch (error) {
     console.error('Get categories error:', error);
@@ -297,9 +296,10 @@ router.post('/categories', async (req, res) => {
       return res.status(400).json({ error: 'Category name is required' });
     }
 
-    const result = await db.prepare('INSERT INTO categories (user_id, name) VALUES ($1, $2)').run(is_global ? null : userId, name);
+    const categoryUserId = is_global ? null : userId;
+    const result = await db.prepare('INSERT INTO categories (user_id, name) VALUES ($1, $2)').run(categoryUserId, name);
 
-    res.status(201).json({ id: result.lastInsertRowid, user_id: is_global ? null : userId, name });
+    res.status(201).json({ id: result.lastInsertRowid, user_id: categoryUserId, name });
   } catch (error) {
     console.error('Create category error:', error);
     res.status(500).json({ error: 'Internal server error' });
