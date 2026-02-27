@@ -209,7 +209,11 @@ router.delete('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Card not found' });
     }
 
-    const canDelete = existing.user_id === userId || (existing.team_id && await db.prepare('SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2').get(existing.team_id, userId));
+    const isOwner = existing.user_id === userId;
+    const isTeamMember = existing.team_id && await db.prepare('SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2').get(existing.team_id, userId);
+    const isSharedWithUser = await db.prepare('SELECT 1 FROM shared_cards WHERE card_id = $1 AND user_id = $2').get(id, userId);
+    
+    const canDelete = isOwner || isTeamMember || isSharedWithUser;
     if (!canDelete) {
       return res.status(403).json({ error: 'You can only delete cards from your team' });
     }
