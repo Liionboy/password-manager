@@ -40,6 +40,7 @@ const initDB = async () => {
         reset_expires TIMESTAMP,
         failed_login_attempts INTEGER DEFAULT 0,
         locked_until TIMESTAMP,
+        encryption_salt TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       )
     `);

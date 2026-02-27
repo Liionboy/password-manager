@@ -2,8 +2,27 @@ const express = require('express');
 const bcrypt = require('bcryptjs');
 const { authenticateToken, generateTokens, generateTempToken, refreshAccessToken } = require('../middleware/auth');
 const { AuditActions } = require('../middleware/audit');
+const { generateSalt } = require('../utils/crypto-per-user');
 
 const router = express.Router();
+
+router.get('/salt/:username', async (req, res) => {
+  try {
+    const { username } = req.params;
+    
+    const db = req.db;
+    const userResult = await db.query('SELECT encryption_salt FROM users WHERE username = $1', [username]);
+    
+    if (userResult.rows.length === 0) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    
+    res.json({ salt: userResult.rows[0].encryption_salt });
+  } catch (error) {
+    console.error('Get salt error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 router.post('/register', async (req, res) => {
   try {
@@ -40,13 +59,19 @@ router.post('/register', async (req, res) => {
 
     const passwordHash = await bcrypt.hash(password, 10);
     
+    // Generate unique salt for per-user encryption key derivation
+    const encryptionSalt = generateSalt();
+    
     // First user becomes admin ONLY if ALLOW_FIRST_ADMIN is explicitly set
     const userCount = await db.query('SELECT COUNT(*) as count FROM users');
     const allowFirstAdmin = process.env.ALLOW_FIRST_ADMIN === 'true';
     const isFirstUser = parseInt(userCount.rows[0].count) === 0;
     const role = (isFirstUser && allowFirstAdmin) ? 'admin' : 'user';
     
-    const result = await db.query('INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3) RETURNING id', [username, passwordHash, role]);
+    const result = await db.query(
+      'INSERT INTO users (username, password_hash, role, encryption_salt) VALUES ($1, $2, $3, $4) RETURNING id', 
+      [username, passwordHash, role, encryptionSalt.toString('base64')]
+    );
 
     const tokens = generateTokens({ id: result.rows[0].id, username, role });
     
@@ -128,7 +153,8 @@ router.post('/login', async (req, res) => {
     if (user.mfa_enabled && user.mfa_secret) {
       return res.json({ 
         mfaRequired: true, 
-        tempToken: generateTempToken(user) 
+        tempToken: generateTempToken(user),
+        encryptionSalt: user.encryption_salt
       });
     }
 
@@ -139,7 +165,8 @@ router.post('/login', async (req, res) => {
       ...tokens,
       userId: user.id, 
       username: user.username, 
-      role: user.role 
+      role: user.role,
+      encryptionSalt: user.encryption_salt
     });
   } catch (error) {
     console.error('Login error:', error);
@@ -186,7 +213,8 @@ router.post('/mfa/verify-temp', async (req, res) => {
       ...tokens,
       userId: user.id, 
       username: user.username, 
-      role: user.role 
+      role: user.role,
+      encryptionSalt: user.encryption_salt
     });
   } catch (error) {
     console.error('MFA verify error:', error);

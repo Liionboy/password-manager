@@ -2,10 +2,14 @@ const express = require('express');
 const { authenticateToken } = require('../middleware/auth');
 const { encrypt, decrypt, generatePassword } = require('../utils/crypto');
 const { sendNotification } = require('./settings');
+const { requireEncryptionKey } = require('../middleware/encryption-key');
 
 const router = express.Router();
 
 router.use(authenticateToken);
+
+// Optional: uncomment to enable per-user encryption
+// router.use(requireEncryptionKey);
 
 router.get('/', async (req, res) => {
   try {
@@ -58,10 +62,18 @@ router.get('/', async (req, res) => {
 
     const passwords = await db.prepare(query).all(...params);
 
-    const decrypted = passwords.map(p => ({
-      ...p,
-      password: decrypt(p.encrypted_password)
-    }));
+    const decrypted = passwords.map(p => {
+      // Try per-user decryption first, fall back to legacy
+      try {
+        if (req.encryptionKey) {
+          return { ...p, password: decrypt(p.encrypted_password, req.encryptionKey) };
+        }
+        return { ...p, password: decrypt(p.encrypted_password) };
+      } catch (e) {
+        console.error('Decryption error for password', p.id, e.message);
+        return { ...p, password: '[DECRYPTION_FAILED]' };
+      }
+    });
 
     res.json(decrypted);
   } catch (error) {
@@ -88,7 +100,9 @@ router.post('/', async (req, res) => {
       }
     }
 
-    const encryptedPassword = encrypt(password);
+    const encryptedPassword = req.encryptionKey 
+      ? encrypt(password, req.encryptionKey)
+      : encrypt(password);
     const folder = folder_id ? await db.prepare('SELECT name FROM folders WHERE id = ?').get(folder_id) : null;
     const folderInfo = folder ? ` in folder "${folder.name}"` : '';
     
@@ -134,7 +148,9 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Password not found' });
     }
 
-    const encryptedPassword = password ? encrypt(password) : existing.encrypted_password;
+    const encryptedPassword = password 
+      ? (req.encryptionKey ? encrypt(password, req.encryptionKey) : encrypt(password))
+      : existing.encrypted_password;
 
     await db.prepare(`
       UPDATE passwords 
@@ -217,15 +233,33 @@ router.get('/export', async (req, res) => {
       WHERE p.user_id = $1
     `).all(userId);
 
-    const exportData = passwords.map(p => ({
-      title: p.title,
-      username: p.username,
-      password: decrypt(p.encrypted_password),
-      url: p.url,
-      notes: p.notes,
-      category: p.category_name,
-      folder: p.folder_name
-    }));
+    const exportData = passwords.map(p => {
+      try {
+        const decryptedPassword = req.encryptionKey 
+          ? decrypt(p.encrypted_password, req.encryptionKey)
+          : decrypt(p.encrypted_password);
+        return {
+          title: p.title,
+          username: p.username,
+          password: decryptedPassword,
+          url: p.url,
+          notes: p.notes,
+          category: p.category_name,
+          folder: p.folder_name
+        };
+      } catch (e) {
+        console.error('Export decryption error for', p.id, e.message);
+        return {
+          title: p.title,
+          username: p.username,
+          password: '[DECRYPTION_FAILED]',
+          url: p.url,
+          notes: p.notes,
+          category: p.category_name,
+          folder: p.folder_name
+        };
+      }
+    });
 
     res.json(exportData);
   } catch (error) {
@@ -260,7 +294,9 @@ router.post('/import', async (req, res) => {
       const notes = p.notes || null;
 
       if (password) {
-        const encryptedPassword = encrypt(password);
+        const encryptedPassword = req.encryptionKey 
+          ? encrypt(password, req.encryptionKey)
+          : encrypt(password);
         await db.prepare(`
           INSERT INTO passwords (user_id, title, username, encrypted_password, url, notes)
           VALUES ($1, $2, $3, $4, $5, $6)

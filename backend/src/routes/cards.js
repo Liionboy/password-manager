@@ -2,10 +2,14 @@ const express = require('express');
 const { authenticateToken } = require('../middleware/auth');
 const { encrypt, decrypt } = require('../utils/crypto');
 const { sendNotification } = require('./settings');
+const { requireEncryptionKey } = require('../middleware/encryption-key');
 
 const router = express.Router();
 
 router.use(authenticateToken);
+
+// Optional: uncomment to enable per-user encryption
+// router.use(requireEncryptionKey);
 
 router.get('/', async (req, res) => {
   try {
@@ -55,11 +59,28 @@ router.get('/', async (req, res) => {
 
     const cards = await db.prepare(query).all(...params);
 
-    const decrypted = cards.map(card => ({
-      ...card,
-      card_number: decrypt(card.encrypted_card_number),
-      cvv: card.cvv ? decrypt(card.cvv) : null
-    }));
+    const decrypted = cards.map(card => {
+      try {
+        const decryptedNumber = req.encryptionKey 
+          ? decrypt(card.encrypted_card_number, req.encryptionKey)
+          : decrypt(card.encrypted_card_number);
+        const decryptedCvv = card.cvv && req.encryptionKey
+          ? decrypt(card.cvv, req.encryptionKey)
+          : (card.cvv ? decrypt(card.cvv) : null);
+        return {
+          ...card,
+          card_number: decryptedNumber,
+          cvv: decryptedCvv
+        };
+      } catch (e) {
+        console.error('Card decryption error for', card.id, e.message);
+        return {
+          ...card,
+          card_number: '[DECRYPTION_FAILED]',
+          cvv: card.cvv ? '[DECRYPTION_FAILED]' : null
+        };
+      }
+    });
 
     res.json(decrypted);
   } catch (error) {
@@ -86,8 +107,12 @@ router.post('/', async (req, res) => {
       }
     }
 
-    const encryptedCardNumber = encrypt(card_number);
-    const encryptedCvv = cvv ? encrypt(cvv) : null;
+    const encryptedCardNumber = req.encryptionKey 
+      ? encrypt(card_number, req.encryptionKey)
+      : encrypt(card_number);
+    const encryptedCvv = cvv 
+      ? (req.encryptionKey ? encrypt(cvv, req.encryptionKey) : encrypt(cvv))
+      : null;
     const folder = folder_id ? await db.prepare('SELECT name FROM folders WHERE id = ?').get(folder_id) : null;
     const folderInfo = folder ? ` in folder "${folder.name}"` : '';
     
@@ -135,8 +160,12 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Card not found' });
     }
 
-    const encryptedCardNumber = card_number ? encrypt(card_number) : existing.encrypted_card_number;
-    const encryptedCvv = cvv ? encrypt(cvv) : existing.cvv;
+    const encryptedCardNumber = card_number 
+      ? (req.encryptionKey ? encrypt(card_number, req.encryptionKey) : encrypt(card_number))
+      : existing.encrypted_card_number;
+    const encryptedCvv = cvv 
+      ? (req.encryptionKey ? encrypt(cvv, req.encryptionKey) : encrypt(cvv))
+      : existing.cvv;
 
     await db.prepare(`
       UPDATE cards 
