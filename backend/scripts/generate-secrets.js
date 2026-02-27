@@ -29,40 +29,40 @@ if (fs.existsSync(envPath)) {
 }
 
 const secrets = {
-  # JWT Configuration
+  // JWT Configuration
   JWT_SECRET: generateSecret(32),
   JWT_EXPIRY: '15m',
   REFRESH_SECRET: generateSecret(32),
   REFRESH_EXPIRY: '7d',
   
-  # Encryption - MUST be exactly 32 characters for AES-256
+  // Encryption - MUST be exactly 32 characters for AES-256
   ENCRYPTION_KEY: generateBase64Secret(32),
   
-  # Database Configuration
+  // Database Configuration
   DB_HOST: 'postgres',
   DB_USER: 'postgres',
   DB_PASSWORD: generateSecret(16),
   DB_NAME: 'passwordmanager',
   
-  # Application Settings
+  // Application Settings
   NODE_ENV: 'production',
   PORT: '5000',
   
-  # Security Settings
+  // Security Settings
   BCRYPT_ROUNDS: '10',
   MAX_LOGIN_ATTEMPTS: '5',
   LOCKOUT_DURATION_MINUTES: '15',
   
-  # Admin Setup - Set to 'true' ONLY for initial admin creation
-  # After creating admin, change to 'false' or remove
+  // Admin Setup - Set to 'true' ONLY for initial admin creation
+  // After creating admin, change to 'false' or remove
   ALLOW_FIRST_ADMIN: 'true',
   
-  # Optional: SMTP (configure if you want email notifications)
-  # SMTP_HOST: ''
-  # SMTP_PORT: '587'
-  # SMTP_USER: ''
-  # SMTP_PASS: ''
-  # SMTP_FROM: 'Password Manager <noreply@example.com>'
+  // Optional: SMTP (configure if you want email notifications)
+  // SMTP_HOST: ''
+  // SMTP_PORT: '587'
+  // SMTP_USER: ''
+  // SMTP_PASS: ''
+  // SMTP_FROM: 'Password Manager <noreply@example.com>'
 };
 
 // Generate .env file
