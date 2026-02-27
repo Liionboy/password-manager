@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import * as speakeasy from 'speakeasy';
+import * as OTPAuth from 'otpauth';
 import { passwords, categories, cards, folders as foldersApi, teams, auth } from '../api';
 
 function Dashboard({ token, setToken, role = 'user' }) {
@@ -329,9 +329,18 @@ function Dashboard({ token, setToken, role = 'user' }) {
   const handleMfaSetup = async () => {
     try {
       const userId = localStorage.getItem('userId') || localStorage.getItem('username');
-      const secret = speakeasy.generateSecret({ name: `PasswordManager-${userId}` });
-      const response = await auth.mfaSetup(secret.base32, secret.otpauth_url);
-      setMfaSetupData({ qrCode: response.data.qrCode, secret: secret.base32 });
+      const totp = new OTPAuth.TOTP({
+        issuer: 'PasswordManager',
+        label: userId,
+        algorithm: 'SHA1',
+        digits: 6,
+        period: 30,
+        secret: new OTPAuth.Secret({ size: 20 })
+      });
+      const secret = totp.secret.base32;
+      const otpauthUrl = totp.toString();
+      const response = await auth.mfaSetup(secret, otpauthUrl);
+      setMfaSetupData({ qrCode: response.data.qrCode, secret: secret });
     } catch (err) {
       showNotification('Error setting up MFA: ' + (err.response?.data?.error || err.message), 'error');
     }
