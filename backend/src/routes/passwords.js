@@ -195,10 +195,10 @@ router.delete('/:id', async (req, res) => {
     const isOwner = existing.user_id === userId;
     const isTeamMember = existing.team_id && await db.prepare('SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2').get(existing.team_id, userId);
     const isSharedWithUser = await db.prepare('SELECT 1 FROM shared_passwords WHERE password_id = $1 AND user_id = $2').get(id, userId);
+    const canSeePassword = isOwner || isTeamMember || isSharedWithUser;
     
-    const canDelete = isOwner || isTeamMember || isSharedWithUser;
-    if (!canDelete) {
-      return res.status(403).json({ error: 'You can only delete passwords from your team' });
+    if (!canSeePassword) {
+      return res.status(403).json({ error: 'You do not have access to this password' });
     }
 
     const result = await db.prepare('DELETE FROM passwords WHERE id = $1').run(id);
