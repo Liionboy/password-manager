@@ -269,6 +269,9 @@ function PasswordForm({ token }) {
                   <option key={cat.id} value={cat.id}>{cat.name}</option>
                 ))}
               </select>
+              {formData.category_id && (
+                <button type="button" onClick={() => { if (window.confirm('Delete this category?')) { categories.delete(formData.category_id).then(() => { setFormData({ ...formData, category_id: '' }); loadCategories(); }).catch(err => alert(err.response?.data?.error || 'Error deleting category')); } }} className="danger" style={{ padding: '8px 12px' }}>X</button>
+              )}
               <input
                 type="text"
                 placeholder="New category"

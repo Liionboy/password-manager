@@ -310,4 +310,22 @@ router.post('/categories', async (req, res) => {
   }
 });
 
+router.delete('/categories/:id', async (req, res) => {
+  try {
+    const db = req.db;
+    const { id } = req.params;
+
+    const result = await db.prepare('DELETE FROM categories WHERE id = $1').run(id);
+
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Category not found' });
+    }
+
+    res.json({ message: 'Category deleted successfully' });
+  } catch (error) {
+    console.error('Delete category error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 module.exports = router;
