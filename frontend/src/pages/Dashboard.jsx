@@ -738,9 +738,9 @@ function Dashboard({ token, setToken, role = 'user' }) {
         <div style={{
           position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
           background: 'rgba(0, 0, 0, 0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          backdropFilter: 'blur(4px)'
+          backdropFilter: 'blur(4px)', zIndex: 2000
         }}>
-          <div className="form-container" style={{ maxWidth: '400px' }}>
+          <div className="form-container" style={{ maxWidth: '500px', maxHeight: '90vh', overflowY: 'auto' }}>
             <h2>My Profile</h2>
             <div className="form-group">
               <label>Notification Email</label>
