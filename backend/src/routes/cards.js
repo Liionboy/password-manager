@@ -44,9 +44,8 @@ router.get('/', async (req, res) => {
     if (folderId) {
       query += ` AND c.folder_id = $${params.length + 1}`;
       params.push(parseInt(folderId));
-    } else {
-      query += ` AND c.folder_id IS NULL`;
     }
+    // Don't filter by folder_id if not specified - show all cards
 
     query += ` ORDER BY is_shared ASC, c.created_at DESC`;
 

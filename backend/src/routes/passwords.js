@@ -47,9 +47,8 @@ router.get('/', async (req, res) => {
     if (folderId && folderId !== '' && folderId !== 'null' && folderId !== 'undefined') {
       query += ` AND p.folder_id = $${params.length + 1}`;
       params.push(parseInt(folderId));
-    } else {
-      query += ` AND p.folder_id IS NULL`;
     }
+    // Don't filter by folder_id if not specified - show all passwords
 
     query += ` ORDER BY is_shared ASC, p.created_at DESC`;
 
