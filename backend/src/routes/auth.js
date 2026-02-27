@@ -29,8 +29,6 @@ router.post('/register', async (req, res) => {
     const body = req.body || {};
     const { username, password } = body;
 
-    console.log('Register request body:', JSON.stringify(body));
-
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password are required' });
     }
@@ -99,8 +97,6 @@ router.post('/login', async (req, res) => {
   try {
     const body = req.body || {};
     const { username, password } = body;
-
-    console.log('Login request body:', JSON.stringify(body));
 
     if (!username || !password) {
       return res.status(400).json({ error: 'Username and password are required', received: body });
@@ -573,7 +569,8 @@ router.post('/forgot-password', async (req, res) => {
     await db.query('UPDATE users SET reset_token = $1, reset_expires = $2 WHERE id = $3', [resetToken, resetExpires.toISOString(), user.id]);
 
     const { sendNotification } = require('./settings');
-    const resetLink = `https://password.homelocal.work/reset-password?token=${resetToken}&username=${username}`;
+    const baseUrl = process.env.BASE_URL || 'http://localhost:5173';
+    const resetLink = `${baseUrl}/reset-password?token=${resetToken}&username=${username}`;
     await sendNotification(db, user.id, 'Password Reset', resetLink, 'reset');
 
     res.json({ message: 'If the username exists, a reset email will be sent' });

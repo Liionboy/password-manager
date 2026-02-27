@@ -119,7 +119,6 @@ router.post('/', async (req, res) => {
       id: result.lastInsertRowid,
       title,
       username,
-      password,
       url,
       folder_id,
       category_id,
@@ -354,6 +353,7 @@ router.post('/categories', async (req, res) => {
 router.delete('/categories/:id', async (req, res) => {
   try {
     const db = req.db;
+    const userId = req.user.id;
     const { id } = req.params;
 
     const result = await db.prepare('DELETE FROM categories WHERE id = $1').run(id);
