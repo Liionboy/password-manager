@@ -77,11 +77,12 @@ router.put('/', async (req, res) => {
         let params = [smtp_host, smtp_port, smtp_user, smtp_from, notify_on_add ? 1 : 0, notify_on_update ? 1 : 0, notify_on_delete ? 1 : 0];
 
         if (smtp_password && smtp_password !== '***hidden***') {
-          updateSql += ', smtp_password = $9';
+          updateSql += ', smtp_password = $8 WHERE is_global = 1';
           params.push(smtp_password);
+        } else {
+          updateSql += ' WHERE is_global = 1';
         }
 
-        updateSql += ' WHERE is_global = 1';
         await db.prepare(updateSql).run(...params);
       } else {
         await db.prepare(`INSERT INTO settings (user_id, smtp_host, smtp_port, smtp_user, smtp_password, smtp_from, notify_on_add, notify_on_update, notify_on_delete, is_global)
@@ -98,12 +99,12 @@ router.put('/', async (req, res) => {
       let params = [smtp_host, smtp_port, smtp_user, smtp_from, notify_on_add ? 1 : 0, notify_on_update ? 1 : 0, notify_on_delete ? 1 : 0];
 
       if (smtp_password && smtp_password !== '***hidden***') {
-        updateSql += ', smtp_password = $9';
-        params.push(smtp_password);
+        updateSql += ', smtp_password = $8 WHERE user_id = $9';
+        params.push(smtp_password, userId);
+      } else {
+        updateSql += ' WHERE user_id = $8';
+        params.push(userId);
       }
-
-      updateSql += ' WHERE user_id = $8';
-      params.push(userId);
 
       await db.prepare(updateSql).run(...params);
     } else {
