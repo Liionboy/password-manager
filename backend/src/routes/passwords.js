@@ -124,7 +124,12 @@ router.put('/:id', async (req, res) => {
     const { id } = req.params;
     const { title, username, password, url, folder_id, category_id, notes } = req.body;
 
-    const existing = await db.prepare('SELECT * FROM passwords WHERE id = $1 AND user_id = $2').get(id, userId);
+    const existing = await db.prepare(`
+      SELECT p.* FROM passwords p 
+      WHERE p.id = $1 AND (p.user_id = $2 
+        OR p.id IN (SELECT password_id FROM shared_passwords WHERE user_id = $2)
+        OR p.team_id IN (SELECT team_id FROM team_members WHERE user_id = $2))
+    `).get(id, userId);
 
     if (!existing) {
       return res.status(404).json({ error: 'Password not found' });
@@ -145,7 +150,7 @@ router.put('/:id', async (req, res) => {
       category_id !== undefined ? category_id : existing.category_id,
       notes !== undefined ? notes : existing.notes,
       id,
-      userId
+      existing.user_id
     );
 
     const newFolderId = folder_id !== undefined ? folder_id : existing.folder_id;
