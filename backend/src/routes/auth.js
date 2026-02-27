@@ -99,7 +99,7 @@ router.post('/login', async (req, res) => {
     const { username, password } = body;
 
     if (!username || !password) {
-      return res.status(400).json({ error: 'Username and password are required', received: body });
+      return res.status(400).json({ error: 'Username and password are required' });
     }
 
     const db = req.db;
