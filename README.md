@@ -1,8 +1,8 @@
 # 🔐 Password Manager
 
-A secure, self-hosted password manager application built with React, Node.js, and SQLite - all containerized with Docker.
+A secure, self-hosted password manager application built with React, Node.js, and PostgreSQL - all containerized with Docker.
 
-![Version](https://img.shields.io/badge/version-1.6.0-blue)
+![Version](https://img.shields.io/badge/version-2.0.0-blue)
 ![Docker](https://img.shields.io/badge/Docker-ready-blueviolet)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -38,7 +38,7 @@ A secure, self-hosted password manager application built with React, Node.js, an
 |-----------|------------|
 | Frontend | React 18 + Vite |
 | Backend | Node.js + Express |
-| Database | SQLite (better-sqlite3) |
+| Database | PostgreSQL 15 |
 | Authentication | JWT + bcrypt |
 | Encryption | AES-256 (crypto-js) |
 | Email | Nodemailer (SMTP) |
@@ -209,6 +209,10 @@ The following environment variables can be configured in `docker-compose.yml`:
 |----------|-------------|---------|
 | `JWT_SECRET` | Secret key for JWT tokens | `your-super-secret-jwt-key-change-in-production` |
 | `ENCRYPTION_KEY` | 32-character key for AES-256 encryption | `32-char-encryption-key-here!!` |
+| `DB_HOST` | PostgreSQL host | `postgres` |
+| `DB_USER` | PostgreSQL user | `postgres` |
+| `DB_PASSWORD` | PostgreSQL password | `postgres` |
+| `DB_NAME` | PostgreSQL database name | `passwordmanager` |
 
 > **Security Note:** Change the default `JWT_SECRET` and `ENCRYPTION_KEY` values in production!
 
@@ -217,7 +221,7 @@ The following environment variables can be configured in `docker-compose.yml`:
 - All passwords and card numbers are encrypted using AES-256 before storage
 - JWT tokens expire after 24 hours (MFA temp tokens after 5 minutes)
 - Passwords and card data are never stored in plain text
-- SQLite database is stored in a Docker volume for persistence
+- PostgreSQL database is stored in a Docker volume for persistence
 - Password strength validation (minimum 8 chars + 3 character types)
 - Account lockout after 5 failed login attempts (15 minutes)
 - Rate limiting on all endpoints (100 req/15min general, 10 req/15min auth)
