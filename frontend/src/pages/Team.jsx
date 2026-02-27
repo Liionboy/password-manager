@@ -113,8 +113,8 @@ function Team({ token }) {
             <Link to="/">
               <button className="secondary">Back</button>
             </Link>
-            <span style={{ color: '#94a3b8', fontSize: '14px', marginLeft: '10px', alignSelf: 'center' }}>
-              {localStorage.getItem('username')}
+            <span style={{ color: '#fff', fontSize: '14px', marginLeft: '10px', background: '#374151', padding: '5px 10px', borderRadius: '4px' }}>
+              👤 {localStorage.getItem('username')}
             </span>
           </div>
         </div>
