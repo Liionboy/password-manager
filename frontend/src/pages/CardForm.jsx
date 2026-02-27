@@ -97,9 +97,16 @@ function CardForm({ token }) {
 
     try {
       const data = {
-        ...formData,
+        title: formData.title,
+        cardholder_name: formData.cardholder_name || null,
+        card_number: formData.card_number.replace(/\s/g, ''),
+        expiry_month: formData.expiry_month || null,
+        expiry_year: formData.expiry_year || null,
+        cvv: formData.cvv || null,
+        brand: formData.brand || null,
         category_id: formData.category_id || null,
-        card_number: formData.card_number.replace(/\s/g, '')
+        notes: formData.notes || null,
+        folder_id: formData.folder_id || null
       };
 
       if (isEdit) {

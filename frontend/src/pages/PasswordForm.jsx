@@ -90,9 +90,13 @@ function PasswordForm({ token }) {
 
     try {
       const data = {
-        ...formData,
+        title: formData.title,
+        username: formData.username || null,
+        password: formData.password || null,
+        url: formData.url || null,
         folder_id: formData.folder_id || null,
-        category_id: formData.category_id || null
+        category_id: formData.category_id || null,
+        notes: formData.notes || null
       };
 
       if (isEdit) {
