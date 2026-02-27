@@ -34,7 +34,10 @@ export const auth = {
   mfaSetup: () => api.post('/auth/mfa/setup'),
   mfaEnable: (code) => api.post('/auth/mfa/enable', { code }),
   mfaDisable: (code) => api.post('/auth/mfa/disable', { code }),
-  mfaVerifyTemp: (code) => api.post('/auth/mfa/verify-temp', { code }),
+  mfaVerifyTemp: (code) => {
+    const tempToken = localStorage.getItem('tempToken');
+    return api.post('/auth/mfa/verify-temp', { tempToken, code });
+  },
   forgotPassword: (username) => api.post('/auth/forgot-password', JSON.stringify({ username }), { headers: { 'Content-Type': 'application/json' } }),
   resetPassword: (data) => api.post('/auth/reset-password', JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } })
 };
