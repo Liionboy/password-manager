@@ -198,13 +198,11 @@ const sendNotification = async (db, userId, subject, body, actionType) => {
     console.log('Getting user and settings for userId:', userId);
     let settings = await db.prepare('SELECT * FROM settings WHERE user_id = ?').get(userId);
     const user = await db.prepare('SELECT email FROM users WHERE id = ?').get(userId);
-    console.log('User email:', user?.email, 'Settings:', settings);
     
     let isGlobal = false;
     if (!settings || !settings.smtp_host) {
       console.log('No personal settings, checking global');
       const globalSettings = await db.prepare('SELECT * FROM settings WHERE is_global = 1').get();
-      console.log('Global settings:', globalSettings);
       if (globalSettings && globalSettings.smtp_host) {
         settings = globalSettings;
         isGlobal = true;
@@ -228,7 +226,7 @@ const sendNotification = async (db, userId, subject, body, actionType) => {
       return;
     }
 
-    console.log('Sending notification to:', recipientEmail, 'via SMTP:', settings.smtp_host);
+    console.log('Sending notification to:', recipientEmail);
 
     const transporter = nodemailer.createTransport({
       host: settings.smtp_host,
