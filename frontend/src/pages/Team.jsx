@@ -10,6 +10,8 @@ function Team({ token }) {
   const [success, setSuccess] = useState('');
   const [editingUser, setEditingUser] = useState(null);
   const [editRole, setEditRole] = useState('');
+  const [resetPasswordUser, setResetPasswordUser] = useState(null);
+  const [newPassword, setNewPassword] = useState('');
 
   useEffect(() => {
     loadUsers();
@@ -77,6 +79,18 @@ function Team({ token }) {
       loadUsers();
     } catch (err) {
       setError(err.response?.data?.error || 'Error updating user');
+    }
+  };
+
+  const handleResetPassword = async () => {
+    if (!resetPasswordUser || !newPassword) return;
+    try {
+      await auth.resetUserPassword(resetPasswordUser.id, newPassword);
+      setSuccess('Password reset successfully!');
+      setResetPasswordUser(null);
+      setNewPassword('');
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error resetting password');
     }
   };
 
@@ -161,6 +175,7 @@ function Team({ token }) {
                 </div>
                 <div className="password-actions">
                   <button onClick={() => { setEditingUser(user); setEditRole(user.role); setError(''); setSuccess(''); }} className="secondary">Edit</button>
+                  <button onClick={() => { setResetPasswordUser(user); setError(''); setSuccess(''); }} className="secondary">Reset Password</button>
                   {user.locked_until && new Date(user.locked_until) > new Date() && (
                     <button onClick={() => handleUnlockUser(user.id)} className="warning">Unlock</button>
                   )}
@@ -189,6 +204,32 @@ function Team({ token }) {
               <div className="form-actions">
                 <button onClick={handleEditUser} className="success">Save</button>
                 <button onClick={() => setEditingUser(null)} className="secondary">Cancel</button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {resetPasswordUser && (
+          <div style={{
+            position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+            background: 'rgba(0, 0, 0, 0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            backdropFilter: 'blur(4px)'
+          }}>
+            <div className="form-container" style={{ maxWidth: '400px' }}>
+              <h2>Reset Password: {resetPasswordUser.username}</h2>
+              <div className="form-group">
+                <label>New Password</label>
+                <input
+                  type="password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter new password"
+                  required
+                />
+              </div>
+              <div className="form-actions">
+                <button onClick={handleResetPassword} className="success">Reset</button>
+                <button onClick={() => { setResetPasswordUser(null); setNewPassword(''); }} className="secondary">Cancel</button>
               </div>
             </div>
           </div>
