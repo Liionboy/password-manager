@@ -57,7 +57,7 @@ function PasswordForm({ token }) {
 
   const loadPassword = async () => {
     try {
-      const response = await passwords.getAll();
+      const response = await passwords.getAll(null, null, null, true);
       const pwd = response.data.find(p => p.id === parseInt(id));
       if (pwd) {
         setFormData({

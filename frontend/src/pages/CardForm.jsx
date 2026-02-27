@@ -41,7 +41,7 @@ function CardForm({ token }) {
 
   const loadCard = async () => {
     try {
-      const response = await cards.getAll();
+      const response = await cards.getAll(null, null, null, true);
       const card = response.data.find(c => c.id === parseInt(id));
       if (card) {
         setFormData({

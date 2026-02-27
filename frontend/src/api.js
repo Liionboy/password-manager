@@ -43,7 +43,7 @@ export const auth = {
 };
 
 export const passwords = {
-  getAll: (search, categoryId, folderId) => api.get('/passwords', { params: { search, category_id: categoryId, folder_id: folderId } }),
+  getAll: (search, categoryId, folderId, all = false) => api.get('/passwords', { params: { search, category_id: categoryId, folder_id: folderId, all } }),
   create: (data) => api.post('/passwords', data),
   update: (id, data) => api.put(`/passwords/${id}`, data),
   delete: (id) => api.delete(`/passwords/${id}`),
@@ -62,7 +62,7 @@ export const categories = {
 };
 
 export const cards = {
-  getAll: (search, categoryId, folderId) => api.get('/cards', { params: { search, category_id: categoryId, folder_id: folderId } }),
+  getAll: (search, categoryId, folderId, all = false) => api.get('/cards', { params: { search, category_id: categoryId, folder_id: folderId, all } }),
   create: (data) => api.post('/cards', data),
   update: (id, data) => api.put(`/cards/${id}`, data),
   delete: (id) => api.delete(`/cards/${id}`)

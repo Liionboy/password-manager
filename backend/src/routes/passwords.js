@@ -14,7 +14,7 @@ router.get('/', async (req, res) => {
     
     const db = req.db;
     const userId = req.user.id;
-    const { search, category_id, folder_id } = req.query;
+    const { search, category_id, folder_id, all } = req.query;
 
     let query = `
       SELECT p.*, c.name as category_name, f.name as folder_name, t.name as team_name,
@@ -44,7 +44,9 @@ router.get('/', async (req, res) => {
 
     const folderId = folder_id;
     
-    if (folderId && folderId !== '' && folderId !== 'null' && folderId !== 'undefined') {
+    if (all === 'true' || all === true) {
+      // Get all passwords without folder filtering
+    } else if (folderId && folderId !== '' && folderId !== 'null' && folderId !== 'undefined') {
       query += ` AND p.folder_id = $${params.length + 1}`;
       params.push(parseInt(folderId));
     } else if (folderId === undefined) {
