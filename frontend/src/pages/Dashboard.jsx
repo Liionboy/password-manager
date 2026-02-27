@@ -785,15 +785,16 @@ function Dashboard({ token, setToken, role = 'user' }) {
               )}
 
               {mfaSetupData && (
-                <>
-                  <p style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '10px' }}>
+                <div style={{ maxWidth: '400px', margin: '0 auto' }}>
+                  <p style={{ color: '#94a3b8', fontSize: '14px', marginBottom: '15px' }}>
                     Scan this QR code with your authenticator app (Google Authenticator, Authy, etc.)
                   </p>
-                  <img src={mfaSetupData.qrCode} alt="QR Code" style={{ maxWidth: '200px', display: 'block', margin: '10px auto' }} />
-                  <p style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '10px' }}>
-                    Or enter this secret manually: <strong>{mfaSetupData.secret}</strong>
-                  </p>
-                  <div className="form-group">
+                  <img src={mfaSetupData.qrCode} alt="QR Code" style={{ maxWidth: '250px', display: 'block', margin: '15px auto' }} />
+                  <div style={{ background: '#1e293b', padding: '15px', borderRadius: '8px', marginTop: '15px', wordBreak: 'break-all' }}>
+                    <p style={{ color: '#94a3b8', fontSize: '12px', marginBottom: '8px' }}>Or enter this secret manually:</p>
+                    <strong style={{ color: '#00f0ff', fontSize: '14px' }}>{mfaSetupData.secret}</strong>
+                  </div>
+                  <div className="form-group" style={{ marginTop: '20px' }}>
                     <label>Enter verification code</label>
                     <input
                       type="text"
@@ -803,11 +804,11 @@ function Dashboard({ token, setToken, role = 'user' }) {
                       maxLength={6}
                     />
                   </div>
-                  <div style={{ display: 'flex', gap: '10px' }}>
+                  <div style={{ display: 'flex', gap: '10px', marginTop: '15px' }}>
                     <button onClick={handleMfaEnable} className="success">Verify & Enable</button>
                     <button onClick={() => setMfaSetupData(null)} className="secondary">Cancel</button>
                   </div>
-                </>
+                </div>
               )}
 
               {profileData.mfa_enabled && (
