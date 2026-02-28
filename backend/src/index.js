@@ -121,6 +121,7 @@ const initDB = async (retries = 10) => {
         category_id INTEGER,
         folder_id INTEGER,
         team_id INTEGER,
+        notes TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
@@ -128,6 +129,8 @@ const initDB = async (retries = 10) => {
         FOREIGN KEY (team_id) REFERENCES teams(id) ON DELETE CASCADE
       )
     `);
+
+    await db.query(`ALTER TABLE cards ADD COLUMN IF NOT EXISTS notes TEXT`).catch(() => {});
 
     await db.query(`
       CREATE TABLE IF NOT EXISTS categories (
