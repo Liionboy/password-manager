@@ -61,7 +61,7 @@ cd password-manager
 
 2. Start the application:
 ```bash
-docker compose up --build
+docker compose build --no-cache
 ```
 
 3. Open your browser and navigate to:
