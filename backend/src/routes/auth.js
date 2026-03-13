@@ -1,8 +1,8 @@
 const express = require('express');
-const bcrypt = require('bcryptjs');
 const { authenticateToken, generateTokens, generateTempToken, refreshAccessToken } = require('../middleware/auth');
 const { AuditActions } = require('../middleware/audit');
 const { generateSalt } = require('../utils/crypto-per-user');
+const { hashPassword, verifyPassword, maybeUpgradePasswordHash } = require('../utils/password-hash');
 
 const router = express.Router();
 
@@ -55,7 +55,7 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Username already exists' });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await hashPassword(password);
     
     // Generate unique salt for per-user encryption key derivation
     const encryptionSalt = generateSalt();
@@ -115,7 +115,7 @@ router.post('/login', async (req, res) => {
       return res.status(423).json({ error: `Account locked. Try again in ${remainingMinutes} minutes` });
     }
 
-    const validPassword = await bcrypt.compare(password, user.password_hash);
+    const { valid: validPassword, needsUpgrade } = await verifyPassword(password, user.password_hash);
 
     if (!validPassword) {
       const attempts = (user.failed_login_attempts || 0) + 1;
@@ -140,6 +140,7 @@ router.post('/login', async (req, res) => {
     }
 
     await db.query('UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1', [user.id]);
+    await maybeUpgradePasswordHash(db, user.id, password, needsUpgrade);
     
     await req.audit(AuditActions.LOGIN_SUCCESS, { 
       resource: `user:${user.id}`,
@@ -260,7 +261,7 @@ router.post('/users', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Username already exists' });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await hashPassword(password);
     const result = await db.query('INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3) RETURNING id, username, role', [username, passwordHash, role]);
 
     res.status(201).json({ id: result.rows[0].id, username: result.rows[0].username, role: result.rows[0].role });
@@ -311,7 +312,7 @@ router.post('/users/:id/reset-password', authenticateToken, async (req, res) => 
     }
 
     const db = req.db;
-    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const passwordHash = await hashPassword(newPassword);
     const result = await db.query('UPDATE users SET password_hash = $1 WHERE id = $2 RETURNING id, username', [passwordHash, id]);
 
     if (result.rows.length === 0) {
@@ -385,8 +386,7 @@ router.put('/profile', authenticateToken, async (req, res) => {
     }
 
     if (password) {
-      const bcrypt = require('bcryptjs');
-      const hashedPassword = bcrypt.hashSync(password, 10);
+      const hashedPassword = await hashPassword(password);
       await db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hashedPassword, userId]);
     }
 
@@ -597,7 +597,7 @@ router.post('/reset-password', async (req, res) => {
       return res.status(400).json({ error: 'Invalid or expired reset token' });
     }
 
-    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const passwordHash = await hashPassword(newPassword);
     await db.query('UPDATE users SET password_hash = $1, reset_token = NULL, reset_expires = NULL WHERE id = $2', [passwordHash, user.id]);
 
     res.json({ message: 'Password reset successfully' });

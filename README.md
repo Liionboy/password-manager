@@ -217,10 +217,21 @@ The following environment variables can be configured in `docker-compose.yml`:
 
 > **Security Note:** Change the default `JWT_SECRET` and `ENCRYPTION_KEY` values in production!
 
+### Optional Argon2 tuning (backend)
+
+You can tune Argon2id cost via environment variables:
+
+- `ARGON2_MEMORY_COST` (default `19456`)
+- `ARGON2_TIME_COST` (default `2`)
+- `ARGON2_PARALLELISM` (default `1`)
+
+Legacy bcrypt hashes are still accepted and will be transparently upgraded to Argon2id after successful login.
+
 ## 🔒 Security Considerations
 
 - All passwords and card numbers are encrypted using AES-256 before storage
 - JWT tokens expire after 15 minutes (MFA temp tokens after 5 minutes)
+- Password hashing uses Argon2id for new/updated passwords; existing bcrypt hashes remain compatible
 - Passwords and card data are never stored in plain text
 - PostgreSQL database is stored in a Docker volume for persistence
 - Password strength validation (minimum 8 chars + 3 character types)
