@@ -204,11 +204,18 @@ const initDB = async (retries = 10) => {
         user_id INTEGER NOT NULL,
         token_jti VARCHAR(128) UNIQUE NOT NULL,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_used_at TIMESTAMP,
         expires_at TIMESTAMP NOT NULL,
         revoked_at TIMESTAMP,
+        ip_address VARCHAR(50),
+        user_agent TEXT,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
+
+    await db.query(`ALTER TABLE refresh_sessions ADD COLUMN IF NOT EXISTS last_used_at TIMESTAMP`).catch(() => {});
+    await db.query(`ALTER TABLE refresh_sessions ADD COLUMN IF NOT EXISTS ip_address VARCHAR(50)`).catch(() => {});
+    await db.query(`ALTER TABLE refresh_sessions ADD COLUMN IF NOT EXISTS user_agent TEXT`).catch(() => {});
 
     await db.query(`
       CREATE INDEX IF NOT EXISTS idx_refresh_sessions_user_id ON refresh_sessions(user_id);

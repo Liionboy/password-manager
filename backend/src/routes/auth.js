@@ -71,7 +71,10 @@ router.post('/register', async (req, res) => {
       [username, passwordHash, role, encryptionSalt.toString('base64')]
     );
 
-    const tokens = await generateTokens({ id: result.rows[0].id, username, role }, db);
+    const tokens = await generateTokens({ id: result.rows[0].id, username, role }, db, {
+      ip: req.ip,
+      userAgent: req.get('user-agent')
+    });
     
     // Log audit
     await req.audit(AuditActions.USER_CREATED, { 
@@ -155,7 +158,10 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    const tokens = await generateTokens(user, db);
+    const tokens = await generateTokens(user, db, {
+      ip: req.ip,
+      userAgent: req.get('user-agent')
+    });
 
     res.json({ 
       message: 'Login successful', 
@@ -204,7 +210,10 @@ router.post('/mfa/verify-temp', async (req, res) => {
       return res.status(401).json({ error: 'Invalid MFA code' });
     }
 
-    const tokens = await generateTokens(user, db);
+    const tokens = await generateTokens(user, db, {
+      ip: req.ip,
+      userAgent: req.get('user-agent')
+    });
     res.json({ 
       message: 'Login successful', 
       ...tokens,
@@ -517,7 +526,10 @@ router.post('/refresh', async (req, res) => {
       return res.status(400).json({ error: 'Refresh token is required' });
     }
 
-    const tokens = await refreshAccessToken(refreshToken, req.db);
+    const tokens = await refreshAccessToken(refreshToken, req.db, {
+      ip: req.ip,
+      userAgent: req.get('user-agent')
+    });
     
     // Decode token to get user info for audit
     const jwt = require('jsonwebtoken');
@@ -558,6 +570,55 @@ router.post('/logout-all', authenticateToken, async (req, res) => {
     res.json({ message: 'Logged out from all sessions successfully' });
   } catch (error) {
     console.error('Logout all error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/sessions', authenticateToken, async (req, res) => {
+  try {
+    const sessions = await req.db.query(
+      `SELECT id, token_jti, created_at, last_used_at, expires_at, revoked_at, ip_address, user_agent
+       FROM refresh_sessions
+       WHERE user_id = $1
+       ORDER BY created_at DESC`,
+      [req.user.id]
+    );
+
+    await req.audit(AuditActions.SESSIONS_LIST_VIEWED, {
+      resource: `user:${req.user.id}`,
+      username: req.user.username
+    });
+
+    res.json(sessions.rows);
+  } catch (error) {
+    console.error('List sessions error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/sessions/:id/revoke', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await req.db.query(
+      `UPDATE refresh_sessions
+       SET revoked_at = NOW()
+       WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL
+       RETURNING id`,
+      [id, req.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Session not found or already revoked' });
+    }
+
+    await req.audit(AuditActions.SESSION_REVOKED, {
+      resource: `refresh_session:${id}`,
+      username: req.user.username
+    });
+
+    res.json({ message: 'Session revoked successfully' });
+  } catch (error) {
+    console.error('Revoke session error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

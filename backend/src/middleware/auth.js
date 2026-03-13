@@ -30,12 +30,12 @@ function authenticateToken(req, res, next) {
   });
 }
 
-async function persistRefreshSession(db, userId, jti, expiresIn) {
+async function persistRefreshSession(db, userId, jti, expiresIn, meta = {}) {
   if (!db) return;
   await db.query(
-    `INSERT INTO refresh_sessions (user_id, token_jti, expires_at)
-     VALUES ($1, $2, NOW() + ($3 || ' seconds')::interval)`,
-    [userId, jti, String(expiresIn)]
+    `INSERT INTO refresh_sessions (user_id, token_jti, expires_at, ip_address, user_agent)
+     VALUES ($1, $2, NOW() + ($3 || ' seconds')::interval, $4, $5)`,
+    [userId, jti, String(expiresIn), meta.ip || null, meta.userAgent || null]
   );
 }
 
@@ -51,7 +51,7 @@ function refreshExpiryToSeconds(expiry) {
   return n * 86400;
 }
 
-async function generateTokens(user, db) {
+async function generateTokens(user, db, meta = {}) {
   const accessToken = jwt.sign(
     { id: user.id, username: user.username, role: user.role || 'user' },
     JWT_SECRET,
@@ -66,7 +66,7 @@ async function generateTokens(user, db) {
     { expiresIn: REFRESH_EXPIRY }
   );
 
-  await persistRefreshSession(db, user.id, jti, refreshExpiryToSeconds(REFRESH_EXPIRY));
+  await persistRefreshSession(db, user.id, jti, refreshExpiryToSeconds(REFRESH_EXPIRY), meta);
   
   return { accessToken, refreshToken, expiresIn: JWT_EXPIRY };
 }
@@ -79,7 +79,7 @@ function generateTempToken(user) {
   );
 }
 
-async function refreshAccessToken(refreshToken, db) {
+async function refreshAccessToken(refreshToken, db, meta = {}) {
   return new Promise((resolve, reject) => {
     jwt.verify(refreshToken, REFRESH_SECRET, async (err, user) => {
       if (err) {
@@ -96,13 +96,13 @@ async function refreshAccessToken(refreshToken, db) {
 
           if (session.rows.length === 0) return reject(new Error('Invalid refresh token'));
 
-          await db.query('UPDATE refresh_sessions SET revoked_at = NOW() WHERE token_jti = $1', [user.jti]);
+          await db.query('UPDATE refresh_sessions SET revoked_at = NOW(), last_used_at = NOW() WHERE token_jti = $1', [user.jti]);
 
           const userRes = await db.query('SELECT id, username, role FROM users WHERE id = $1', [user.id]);
           if (userRes.rows.length === 0) return reject(new Error('Invalid refresh token'));
 
           const dbUser = userRes.rows[0];
-          const tokens = await generateTokens({ id: dbUser.id, username: dbUser.username, role: dbUser.role || 'user' }, db);
+          const tokens = await generateTokens({ id: dbUser.id, username: dbUser.username, role: dbUser.role || 'user' }, db, meta);
           resolve(tokens);
         } catch (e) {
           reject(new Error('Invalid refresh token'));

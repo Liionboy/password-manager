@@ -256,6 +256,11 @@ Legacy bcrypt hashes are still accepted and will be transparently upgraded to Ar
 | POST | `/api/auth/mfa/enable` | Enable MFA with verification code |
 | POST | `/api/auth/mfa/disable` | Disable MFA with verification code |
 | POST | `/api/auth/mfa/verify-temp` | Verify MFA code after login |
+| POST | `/api/auth/refresh` | Rotate refresh token and get new access token |
+| POST | `/api/auth/logout` | Logout current client |
+| POST | `/api/auth/logout-all` | Revoke all user sessions |
+| GET | `/api/auth/sessions` | List refresh sessions for current user |
+| POST | `/api/auth/sessions/:id/revoke` | Revoke one refresh session |
 
 ### Passwords
 | Method | Endpoint | Description |
