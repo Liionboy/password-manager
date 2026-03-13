@@ -98,7 +98,11 @@ async function refreshAccessToken(refreshToken, db) {
 
           await db.query('UPDATE refresh_sessions SET revoked_at = NOW() WHERE token_jti = $1', [user.jti]);
 
-          const tokens = await generateTokens({ id: user.id, username: user.username, role: user.role || 'user' }, db);
+          const userRes = await db.query('SELECT id, username, role FROM users WHERE id = $1', [user.id]);
+          if (userRes.rows.length === 0) return reject(new Error('Invalid refresh token'));
+
+          const dbUser = userRes.rows[0];
+          const tokens = await generateTokens({ id: dbUser.id, username: dbUser.username, role: dbUser.role || 'user' }, db);
           resolve(tokens);
         } catch (e) {
           reject(new Error('Invalid refresh token'));
