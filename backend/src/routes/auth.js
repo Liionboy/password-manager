@@ -1,5 +1,5 @@
 const express = require('express');
-const { authenticateToken, generateTokens, generateTempToken, refreshAccessToken } = require('../middleware/auth');
+const { authenticateToken, generateTokens, generateTempToken, refreshAccessToken, revokeAllRefreshSessions } = require('../middleware/auth');
 const { AuditActions } = require('../middleware/audit');
 const { generateSalt } = require('../utils/crypto-per-user');
 const { hashPassword, verifyPassword, maybeUpgradePasswordHash } = require('../utils/password-hash');
@@ -71,7 +71,7 @@ router.post('/register', async (req, res) => {
       [username, passwordHash, role, encryptionSalt.toString('base64')]
     );
 
-    const tokens = generateTokens({ id: result.rows[0].id, username, role });
+    const tokens = await generateTokens({ id: result.rows[0].id, username, role }, db);
     
     // Log audit
     await req.audit(AuditActions.USER_CREATED, { 
@@ -155,7 +155,7 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    const tokens = generateTokens(user);
+    const tokens = await generateTokens(user, db);
 
     res.json({ 
       message: 'Login successful', 
@@ -204,7 +204,7 @@ router.post('/mfa/verify-temp', async (req, res) => {
       return res.status(401).json({ error: 'Invalid MFA code' });
     }
 
-    const tokens = generateTokens(user);
+    const tokens = await generateTokens(user, db);
     res.json({ 
       message: 'Login successful', 
       ...tokens,
@@ -517,7 +517,7 @@ router.post('/refresh', async (req, res) => {
       return res.status(400).json({ error: 'Refresh token is required' });
     }
 
-    const tokens = await refreshAccessToken(refreshToken);
+    const tokens = await refreshAccessToken(refreshToken, req.db);
     
     // Decode token to get user info for audit
     const jwt = require('jsonwebtoken');
@@ -545,6 +545,21 @@ router.post('/logout', authenticateToken, async (req, res) => {
   // In a production setup, you could add the refresh token to a blacklist
   // For now, the client just needs to discard both tokens
   res.json({ message: 'Logged out successfully' });
+});
+
+router.post('/logout-all', authenticateToken, async (req, res) => {
+  try {
+    await revokeAllRefreshSessions(req.user.id, req.db);
+    await req.audit(AuditActions.LOGOUT, {
+      resource: `user:${req.user.id}`,
+      username: req.user.username,
+      scope: 'all_sessions'
+    });
+    res.json({ message: 'Logged out from all sessions successfully' });
+  } catch (error) {
+    console.error('Logout all error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 router.post('/forgot-password', async (req, res) => {
