@@ -228,6 +228,11 @@ const initDB = async (retries = 10) => {
       )
     `);
 
+    await db.query(`ALTER TABLE shared_passwords ADD COLUMN IF NOT EXISTS permission VARCHAR(10) DEFAULT 'view'`);
+    await db.query(`ALTER TABLE shared_passwords ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP NULL`);
+    await db.query(`ALTER TABLE shared_passwords ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMP NULL`);
+    await db.query(`ALTER TABLE shared_passwords ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
+
     await db.query(`
       CREATE TABLE IF NOT EXISTS shared_cards (
         id SERIAL PRIMARY KEY,
