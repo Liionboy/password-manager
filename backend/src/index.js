@@ -132,6 +132,24 @@ const initDB = async (retries = 10) => {
     `);
 
     await db.query(`
+      CREATE TABLE IF NOT EXISTS password_history (
+        id SERIAL PRIMARY KEY,
+        password_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        username VARCHAR(255),
+        encrypted_password TEXT NOT NULL,
+        url TEXT,
+        notes TEXT,
+        category_id INTEGER,
+        folder_id INTEGER,
+        version_created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (password_id) REFERENCES passwords(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+
+    await db.query(`
       CREATE TABLE IF NOT EXISTS cards (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL,

@@ -190,6 +190,50 @@ router.get('/', async (req, res) => {
   }
 });
 
+router.get('/:id/history', async (req, res) => {
+  try {
+    const db = req.db;
+    const userId = req.user.id;
+    const { id } = req.params;
+
+    const existing = await db.prepare(`
+      SELECT p.* FROM passwords p
+      WHERE p.id = $1 AND (p.user_id = $2
+        OR p.id IN (SELECT password_id FROM shared_passwords WHERE user_id = $2)
+        OR p.team_id IN (SELECT team_id FROM team_members WHERE user_id = $2))
+    `).get(id, userId);
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Password not found' });
+    }
+
+    const history = await db.prepare(`
+      SELECT id, password_id, user_id, title, username, encrypted_password, url, notes, category_id, folder_id, version_created_at
+      FROM password_history
+      WHERE password_id = $1
+      ORDER BY version_created_at DESC
+    `).all(id);
+
+    const decrypted = history.map(v => {
+      try {
+        return {
+          ...v,
+          password: req.encryptionKey
+            ? decrypt(v.encrypted_password, req.encryptionKey)
+            : decrypt(v.encrypted_password)
+        };
+      } catch (e) {
+        return { ...v, password: '[DECRYPTION_FAILED]' };
+      }
+    });
+
+    res.json(decrypted);
+  } catch (error) {
+    console.error('Get password history error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.post('/', async (req, res) => {
   try {
     const db = req.db;
@@ -254,6 +298,22 @@ router.put('/:id', async (req, res) => {
     if (!existing) {
       return res.status(404).json({ error: 'Password not found' });
     }
+
+    // Snapshot previous version before update
+    await db.prepare(`
+      INSERT INTO password_history (password_id, user_id, title, username, encrypted_password, url, notes, category_id, folder_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `).run(
+      existing.id,
+      existing.user_id,
+      existing.title,
+      existing.username,
+      existing.encrypted_password,
+      existing.url,
+      existing.notes,
+      existing.category_id,
+      existing.folder_id
+    );
 
     const encryptedPassword = password 
       ? (req.encryptionKey ? encrypt(password, req.encryptionKey) : encrypt(password))
