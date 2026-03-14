@@ -1,12 +1,13 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as OTPAuth from 'otpauth';
-import { passwords, categories, cards, folders as foldersApi, teams, auth } from '../api';
+import { passwords, categories, cards, notes, folders as foldersApi, teams, auth } from '../api';
 
 function Dashboard({ token, setToken, role = 'user' }) {
   const [activeTab, setActiveTab] = useState('passwords');
   const [passwordList, setPasswordList] = useState([]);
   const [cardList, setCardList] = useState([]);
+  const [noteList, setNoteList] = useState([]);
   const [categoryList, setCategoryList] = useState([]);
   const [folderList, setFolderList] = useState([]);
   const [teamList, setTeamList] = useState([]);
@@ -51,6 +52,7 @@ function Dashboard({ token, setToken, role = 'user' }) {
     console.log('useEffect triggered, selectedFolder:', selectedFolder);
     loadPasswords();
     loadCards();
+    loadNotes();
     loadCategories();
     loadFolders();
     if (role === 'admin') loadTeams();
@@ -101,6 +103,15 @@ function Dashboard({ token, setToken, role = 'user' }) {
       setCardList(response.data);
     } catch (err) {
       console.error('Error loading cards:', err);
+    }
+  };
+
+  const loadNotes = async () => {
+    try {
+      const response = await notes.getAll(search || undefined);
+      setNoteList(response.data);
+    } catch (err) {
+      console.error('Error loading notes:', err);
     }
   };
 
@@ -246,6 +257,45 @@ function Dashboard({ token, setToken, role = 'user' }) {
       loadCards();
     } catch (err) {
       console.error('Error deleting card:', err);
+    }
+  };
+
+  const handleAddNote = async () => {
+    const title = window.prompt('Note title:');
+    if (!title) return;
+    const content = window.prompt('Note content:');
+    if (!content) return;
+    try {
+      await notes.create({ title, content });
+      showNotification('Note created successfully!');
+      loadNotes();
+    } catch (err) {
+      showNotification('Error creating note: ' + (err.response?.data?.error || err.message), 'error');
+    }
+  };
+
+  const handleEditNote = async (note) => {
+    const title = window.prompt('Edit note title:', note.title);
+    if (!title) return;
+    const content = window.prompt('Edit note content:', note.content || '');
+    if (!content) return;
+    try {
+      await notes.update(note.id, { title, content });
+      showNotification('Note updated successfully!');
+      loadNotes();
+    } catch (err) {
+      showNotification('Error updating note: ' + (err.response?.data?.error || err.message), 'error');
+    }
+  };
+
+  const handleDeleteNote = async (id) => {
+    if (!window.confirm('Delete this note?')) return;
+    try {
+      await notes.delete(id);
+      showNotification('Note deleted successfully!');
+      loadNotes();
+    } catch (err) {
+      showNotification('Error deleting note: ' + (err.response?.data?.error || err.message), 'error');
     }
   };
 
@@ -573,6 +623,12 @@ function Dashboard({ token, setToken, role = 'user' }) {
             >
               Cards
             </button>
+            <button
+              className={activeTab === 'notes' ? 'tab active' : 'tab'}
+              onClick={() => setActiveTab('notes')}
+            >
+              Notes
+            </button>
           </div>
 
           <div className="actions-bar">
@@ -581,10 +637,12 @@ function Dashboard({ token, setToken, role = 'user' }) {
                 <Link to={selectedFolder ? `/add?folder_id=${selectedFolder}` : `/add`}>
                   <button className="success">+ Add Password</button>
                 </Link>
-              ) : (
+              ) : activeTab === 'cards' ? (
                 <Link to={selectedFolder ? `/add-card?folder_id=${selectedFolder}` : `/add-card`}>
                   <button className="success">+ Add Card</button>
                 </Link>
+              ) : (
+                <button className="success" onClick={handleAddNote}>+ Add Note</button>
               )}
               {activeTab === 'passwords' && (
                 <>
@@ -739,6 +797,30 @@ function Dashboard({ token, setToken, role = 'user' }) {
                         <button className="secondary">Edit</button>
                       </Link>
                       <button onClick={() => handleDeleteCard(card.id)} className="danger">Delete</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          )}
+
+          {activeTab === 'notes' && (
+            noteList.length === 0 ? (
+              <div className="empty-state">
+                <p>No notes found. Add your first secure note!</p>
+              </div>
+            ) : (
+              <div className="password-list">
+                {noteList.map(note => (
+                  <div key={note.id} className="password-card">
+                    <div className="password-info">
+                      <h3>{note.title}</h3>
+                      <p style={{ whiteSpace: 'pre-wrap' }}>{note.content}</p>
+                    </div>
+                    <div className="password-actions">
+                      <button onClick={() => handleCopy(note.content)} className="secondary">Copy</button>
+                      <button onClick={() => handleEditNote(note)} className="secondary">Edit</button>
+                      <button onClick={() => handleDeleteNote(note.id)} className="danger">Delete</button>
                     </div>
                   </div>
                 ))}

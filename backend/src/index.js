@@ -10,6 +10,7 @@ const cardRoutes = require('./routes/cards');
 const settingsRoutes = require('./routes/settings');
 const folderRoutes = require('./routes/folders');
 const teamRoutes = require('./routes/teams');
+const notesRoutes = require('./routes/notes');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -205,6 +206,18 @@ const initDB = async (retries = 10) => {
     `);
 
     await db.query(`
+      CREATE TABLE IF NOT EXISTS secure_notes (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        encrypted_content TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+
+    await db.query(`
       CREATE TABLE IF NOT EXISTS shared_passwords (
         id SERIAL PRIMARY KEY,
         password_id INTEGER NOT NULL,
@@ -337,6 +350,7 @@ app.use('/api/cards', cardRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/folders', folderRoutes);
 app.use('/api/teams', teamRoutes);
+app.use('/api/notes', notesRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });

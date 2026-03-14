@@ -75,6 +75,13 @@ export const cards = {
   delete: (id) => api.delete(`/cards/${id}`)
 };
 
+export const notes = {
+  getAll: (search) => api.get('/notes', { params: { search } }),
+  create: (data) => api.post('/notes', data),
+  update: (id, data) => api.put(`/notes/${id}`, data),
+  delete: (id) => api.delete(`/notes/${id}`)
+};
+
 export const folders = {
   getAll: () => api.get('/folders'),
   create: (data) => api.post('/folders', data),
