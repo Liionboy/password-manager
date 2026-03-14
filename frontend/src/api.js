@@ -116,4 +116,13 @@ export const emergency = {
   finalizeAuto: (id) => api.post(`/emergency/requests/${id}/finalize-auto`)
 };
 
+export const breach = {
+  listEmails: () => api.get('/breach/emails'),
+  addEmail: (email) => api.post('/breach/emails', { email }),
+  removeEmail: (id) => api.delete(`/breach/emails/${id}`),
+  listAlerts: () => api.get('/breach/alerts'),
+  checkAlerts: () => api.post('/breach/alerts/check'),
+  updateAlertStatus: (id, status) => api.post(`/breach/alerts/${id}/status`, { status })
+};
+
 export default api;

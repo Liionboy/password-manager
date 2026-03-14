@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as OTPAuth from 'otpauth';
-import { passwords, categories, cards, notes, emergency, folders as foldersApi, teams, auth } from '../api';
+import { passwords, categories, cards, notes, emergency, breach, folders as foldersApi, teams, auth } from '../api';
 
 function Dashboard({ token, setToken, role = 'user' }) {
   const [activeTab, setActiveTab] = useState('passwords');
@@ -29,6 +29,9 @@ function Dashboard({ token, setToken, role = 'user' }) {
   const [emergencyOutgoing, setEmergencyOutgoing] = useState([]);
   const [allUsers, setAllUsers] = useState([]);
   const [emergencyForm, setEmergencyForm] = useState({ contactUserId: '', delayHours: 168, ownerUserId: '' });
+  const [breachEmails, setBreachEmails] = useState([]);
+  const [breachAlerts, setBreachAlerts] = useState([]);
+  const [breachEmailInput, setBreachEmailInput] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [importData, setImportData] = useState('');
@@ -492,6 +495,18 @@ function Dashboard({ token, setToken, role = 'user' }) {
       } catch {
         setAllUsers([]);
       }
+
+      try {
+        const [emailsRes, alertsRes] = await Promise.all([
+          breach.listEmails(),
+          breach.listAlerts()
+        ]);
+        setBreachEmails(emailsRes.data || []);
+        setBreachAlerts(alertsRes.data || []);
+      } catch {
+        setBreachEmails([]);
+        setBreachAlerts([]);
+      }
     } catch (err) {
       console.error('Error loading profile:', err);
     }
@@ -552,6 +567,41 @@ function Dashboard({ token, setToken, role = 'user' }) {
       await loadProfile();
     } catch (err) {
       showNotification('Error on emergency action: ' + (err.response?.data?.error || err.message), 'error');
+    }
+  };
+
+  const handleAddBreachEmail = async () => {
+    try {
+      if (!breachEmailInput.trim()) {
+        showNotification('Email is required', 'error');
+        return;
+      }
+      await breach.addEmail(breachEmailInput.trim().toLowerCase());
+      setBreachEmailInput('');
+      showNotification('Monitored email added');
+      await loadProfile();
+    } catch (err) {
+      showNotification('Error adding monitored email: ' + (err.response?.data?.error || err.message), 'error');
+    }
+  };
+
+  const handleRunBreachCheck = async () => {
+    try {
+      const resp = await breach.checkAlerts();
+      showNotification(`Breach check completed. New alerts: ${resp.data?.inserted ?? 0}`);
+      await loadProfile();
+    } catch (err) {
+      showNotification('Error checking breaches: ' + (err.response?.data?.error || err.message), 'error');
+    }
+  };
+
+  const handleBreachStatus = async (alertId, status) => {
+    try {
+      await breach.updateAlertStatus(alertId, status);
+      showNotification('Alert status updated');
+      await loadProfile();
+    } catch (err) {
+      showNotification('Error updating alert: ' + (err.response?.data?.error || err.message), 'error');
     }
   };
 
@@ -1301,6 +1351,47 @@ function Dashboard({ token, setToken, role = 'user' }) {
               {(emergencyOutgoing || []).map(r => (
                 <div key={`out-${r.id}`} style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
                   To owner {r.owner_username} • status: {r.status} • grant after: {r.grant_after ? new Date(r.grant_after).toLocaleString() : '-'}
+                </div>
+              ))}
+            </div>
+
+            <div style={{ marginTop: '20px', padding: '15px', background: '#1a1a2e', borderRadius: '8px' }}>
+              <h3 style={{ marginTop: 0 }}>Breach Monitoring</h3>
+
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <input
+                  type="email"
+                  value={breachEmailInput}
+                  onChange={(e) => setBreachEmailInput(e.target.value)}
+                  placeholder="Add email to monitor"
+                />
+                <button className="success" onClick={handleAddBreachEmail}>Add</button>
+                <button className="secondary" onClick={handleRunBreachCheck}>Run Check</button>
+              </div>
+
+              <div style={{ marginTop: '10px', color: '#94a3b8', fontSize: '13px' }}>Monitored emails:</div>
+              {breachEmails.length === 0 ? (
+                <p style={{ color: '#64748b' }}>No monitored emails configured.</p>
+              ) : breachEmails.map(e => (
+                <div key={e.id} style={{ display: 'flex', justifyContent: 'space-between', marginTop: '6px' }}>
+                  <span>{e.email}</span>
+                  <button className="danger" onClick={async () => { await breach.removeEmail(e.id); await loadProfile(); }}>Remove</button>
+                </div>
+              ))}
+
+              <div style={{ marginTop: '12px', color: '#94a3b8', fontSize: '13px' }}>Breach alerts:</div>
+              {breachAlerts.length === 0 ? (
+                <p style={{ color: '#64748b' }}>No alerts yet.</p>
+              ) : breachAlerts.map(a => (
+                <div key={a.id} style={{ border: '1px solid #334155', borderRadius: '8px', padding: '8px', marginTop: '6px' }}>
+                  <div style={{ fontWeight: 600 }}>{a.email} • {a.breach_name}</div>
+                  <div style={{ fontSize: '12px', color: '#94a3b8' }}>
+                    severity: {a.severity} • date: {a.breach_date || '-'} • status: {a.status}
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                    <button className="secondary" onClick={() => handleBreachStatus(a.id, 'acknowledged')}>Acknowledge</button>
+                    <button className="success" onClick={() => handleBreachStatus(a.id, 'resolved')}>Resolve</button>
+                  </div>
                 </div>
               ))}
             </div>
