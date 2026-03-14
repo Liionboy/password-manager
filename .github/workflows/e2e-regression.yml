@@ -29,7 +29,7 @@ jobs:
           JWT_EXPIRY=15m
           REFRESH_SECRET=test-refresh-secret-please-change
           REFRESH_EXPIRY=7d
-          ENCRYPTION_KEY=0123456789abcdef0123456789abcdef
+          ENCRYPTION_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
           DB_HOST=postgres
           DB_USER=postgres
           DB_PASSWORD=postgres
