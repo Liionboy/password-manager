@@ -371,6 +371,17 @@ BACKUP_PASSPHRASE='set-a-strong-passphrase' ./scripts/test-restore.sh
 
 If successful, script prints: `Restore test passed (health=200).`
 
+## ✅ E2E Security Regression (Milestone 8)
+
+- CI workflow: `.github/workflows/e2e-regression.yml`
+- Matrix: `docs/SECURITY_REGRESSION_MATRIX.md`
+
+The E2E workflow validates:
+- stack health (`/api/health`)
+- security headers presence (CSP, X-Frame-Options, X-Content-Type-Options)
+- auth rate limiting (expects HTTP `429` on repeated failed login)
+- encrypted backup script smoke run
+
 ## 📄 License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
