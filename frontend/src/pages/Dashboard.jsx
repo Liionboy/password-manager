@@ -27,6 +27,7 @@ function Dashboard({ token, setToken, role = 'user' }) {
   const [emergencyContacts, setEmergencyContacts] = useState([]);
   const [emergencyIncoming, setEmergencyIncoming] = useState([]);
   const [emergencyOutgoing, setEmergencyOutgoing] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
   const [emergencyForm, setEmergencyForm] = useState({ contactUserId: '', delayHours: 168, ownerUserId: '' });
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -484,6 +485,13 @@ function Dashboard({ token, setToken, role = 'user' }) {
       setEmergencyContacts(contactsRes.data || []);
       setEmergencyIncoming(incomingRes.data || []);
       setEmergencyOutgoing(outgoingRes.data || []);
+
+      try {
+        const usersRes = await auth.getUsers();
+        setAllUsers(usersRes.data || []);
+      } catch {
+        setAllUsers([]);
+      }
     } catch (err) {
       console.error('Error loading profile:', err);
     }
@@ -1222,12 +1230,17 @@ function Dashboard({ token, setToken, role = 'user' }) {
               <div className="form-group">
                 <label>Add trusted contact (User ID)</label>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <input
-                    type="number"
+                  <select
                     value={emergencyForm.contactUserId}
                     onChange={(e) => setEmergencyForm({ ...emergencyForm, contactUserId: e.target.value })}
-                    placeholder="Contact user id"
-                  />
+                  >
+                    <option value="">Select contact user</option>
+                    {allUsers
+                      .filter(u => Number(u.id) !== Number(localStorage.getItem('userId')))
+                      .map(u => (
+                        <option key={u.id} value={u.id}>{u.username} (#{u.id})</option>
+                      ))}
+                  </select>
                   <input
                     type="number"
                     value={emergencyForm.delayHours}
@@ -1256,12 +1269,17 @@ function Dashboard({ token, setToken, role = 'user' }) {
               <div className="form-group">
                 <label>Request access to owner (User ID)</label>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  <input
-                    type="number"
+                  <select
                     value={emergencyForm.ownerUserId}
                     onChange={(e) => setEmergencyForm({ ...emergencyForm, ownerUserId: e.target.value })}
-                    placeholder="Owner user id"
-                  />
+                  >
+                    <option value="">Select owner user</option>
+                    {allUsers
+                      .filter(u => Number(u.id) !== Number(localStorage.getItem('userId')))
+                      .map(u => (
+                        <option key={u.id} value={u.id}>{u.username} (#{u.id})</option>
+                      ))}
+                  </select>
                   <button onClick={handleRequestEmergencyAccess} className="secondary">Request</button>
                 </div>
               </div>

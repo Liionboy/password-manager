@@ -170,6 +170,7 @@ function Team({ token }) {
               <div key={user.id} className="password-card">
                 <div className="password-info">
                   <h3>{user.username}</h3>
+                  <p>User ID: <strong>#{user.id}</strong></p>
                   <p>Role: <span style={{ 
                     color: user.role === 'admin' ? '#00f0ff' : '#94a3b8',
                     fontWeight: 'bold'
