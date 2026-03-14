@@ -4,6 +4,7 @@ import * as OTPAuth from 'otpauth';
 import { passwords, categories, cards, notes, emergency, folders as foldersApi, teams, auth } from '../api';
 
 function Dashboard({ token, setToken, role = 'user' }) {
+  const isAdmin = String(role || localStorage.getItem('role') || 'user').toLowerCase() === 'admin';
   const [activeTab, setActiveTab] = useState('passwords');
   const [passwordList, setPasswordList] = useState([]);
   const [cardList, setCardList] = useState([]);
@@ -75,7 +76,7 @@ function Dashboard({ token, setToken, role = 'user' }) {
     loadNotes();
     loadCategories();
     loadFolders();
-    if (role === 'admin') loadTeams();
+    if (isAdmin) loadTeams();
   }, [search, selectedCategory, selectedFolder, activeTab, role]);
 
   useEffect(() => {
@@ -697,7 +698,7 @@ function Dashboard({ token, setToken, role = 'user' }) {
             <Link to="/teams">
               <button className="secondary">Teams</button>
             </Link>
-            {role === 'admin' && (
+            {isAdmin && (
               <>
                 <Link to="/team">
                   <button className="secondary">Users</button>
@@ -995,7 +996,7 @@ function Dashboard({ token, setToken, role = 'user' }) {
                 ))}
               </select>
             </div>
-            {role === 'admin' && (
+            {isAdmin && (
               <div className="form-group">
                 <label>Team (optional)</label>
                 <select
@@ -1046,7 +1047,7 @@ function Dashboard({ token, setToken, role = 'user' }) {
                 ))}
               </select>
             </div>
-            {role === 'admin' && (
+            {isAdmin && (
               <div className="form-group">
                 <label>Team</label>
                 <select
