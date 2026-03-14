@@ -41,10 +41,6 @@ function Dashboard({ token, setToken, role = 'user' }) {
   const [showNoteModal, setShowNoteModal] = useState(false);
   const [editingNote, setEditingNote] = useState(null);
   const [noteForm, setNoteForm] = useState({ title: '', content: '' });
-  const [showShareModal, setShowShareModal] = useState(false);
-  const [selectedPasswordForShare, setSelectedPasswordForShare] = useState(null);
-  const [shareList, setShareList] = useState([]);
-  const [shareForm, setShareForm] = useState({ user_id: '', permission: 'view', expires_at: '' });
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [commandQuery, setCommandQuery] = useState('');
   const navigate = useNavigate();
@@ -327,51 +323,6 @@ function Dashboard({ token, setToken, role = 'user' }) {
       loadNotes();
     } catch (err) {
       showNotification('Error deleting note: ' + (err.response?.data?.error || err.message), 'error');
-    }
-  };
-
-  const openShareModal = async (passwordItem) => {
-    setSelectedPasswordForShare(passwordItem);
-    setShareForm({ user_id: '', permission: 'view', expires_at: '' });
-    setShowShareModal(true);
-    try {
-      const response = await passwords.getShared(passwordItem.id);
-      setShareList(response.data || []);
-    } catch (err) {
-      showNotification('Error loading shared users: ' + (err.response?.data?.error || err.message), 'error');
-    }
-  };
-
-  const handleShareSave = async () => {
-    if (!shareForm.user_id) {
-      showNotification('User ID is required', 'error');
-      return;
-    }
-    try {
-      await passwords.share(
-        selectedPasswordForShare.id,
-        Number(shareForm.user_id),
-        shareForm.permission,
-        shareForm.expires_at || null
-      );
-      showNotification('Password shared successfully!');
-      const response = await passwords.getShared(selectedPasswordForShare.id);
-      setShareList(response.data || []);
-      setShareForm({ user_id: '', permission: 'view', expires_at: '' });
-    } catch (err) {
-      showNotification('Error sharing password: ' + (err.response?.data?.error || err.message), 'error');
-    }
-  };
-
-  const handleShareRevoke = async (sharedUserId) => {
-    if (!window.confirm('Revoke this share?')) return;
-    try {
-      await passwords.unshare(selectedPasswordForShare.id, sharedUserId);
-      showNotification('Share revoked successfully!');
-      const response = await passwords.getShared(selectedPasswordForShare.id);
-      setShareList(response.data || []);
-    } catch (err) {
-      showNotification('Error revoking share: ' + (err.response?.data?.error || err.message), 'error');
     }
   };
 
@@ -869,7 +820,6 @@ function Dashboard({ token, setToken, role = 'user' }) {
                       )}
                     </div>
                     <div className="password-actions">
-                      {pwd.is_shared !== 1 && <button onClick={() => openShareModal(pwd)} className="secondary">Share</button>}
                       <button onClick={() => handleOpenHistory(pwd)} className="secondary">History</button>
                       <Link to={`/edit/${pwd.id}`}>
                         <button className="secondary">Edit</button>
@@ -1298,75 +1248,6 @@ function Dashboard({ token, setToken, role = 'user' }) {
             <div className="form-actions">
               <button onClick={handleSaveNote} className="success">{editingNote ? 'Save Changes' : 'Create Note'}</button>
               <button onClick={() => setShowNoteModal(false)} className="secondary">Cancel</button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {showShareModal && selectedPasswordForShare && (
-        <div style={{
-          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-          background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-          backdropFilter: 'blur(4px)', zIndex: 3000
-        }}>
-          <div className="form-container" style={{ maxWidth: '700px', width: '95%', maxHeight: '85vh', overflowY: 'auto' }}>
-            <h2>Share Password - {selectedPasswordForShare.title}</h2>
-
-            <div className="form-group">
-              <label>User ID</label>
-              <input
-                type="number"
-                value={shareForm.user_id}
-                onChange={(e) => setShareForm({ ...shareForm, user_id: e.target.value })}
-                placeholder="Target user id"
-              />
-            </div>
-
-            <div className="form-group">
-              <label>Permission</label>
-              <select
-                value={shareForm.permission}
-                onChange={(e) => setShareForm({ ...shareForm, permission: e.target.value })}
-              >
-                <option value="view">view</option>
-                <option value="edit">edit</option>
-              </select>
-            </div>
-
-            <div className="form-group">
-              <label>Expiry (optional)</label>
-              <input
-                type="datetime-local"
-                value={shareForm.expires_at}
-                onChange={(e) => setShareForm({ ...shareForm, expires_at: e.target.value })}
-              />
-            </div>
-
-            <div className="form-actions">
-              <button onClick={handleShareSave} className="success">Add / Update Share</button>
-            </div>
-
-            <h3 style={{ marginTop: '18px' }}>Current Shares</h3>
-            {shareList.length === 0 ? (
-              <p style={{ color: '#94a3b8' }}>No shares configured.</p>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                {shareList.map(s => (
-                  <div key={s.id} style={{ border: '1px solid #334155', borderRadius: '8px', padding: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div>
-                      <div style={{ color: '#e2e8f0' }}>{s.username} (id: {s.user_id})</div>
-                      <div style={{ color: '#94a3b8', fontSize: '12px' }}>
-                        permission: {s.permission} • expires: {s.expires_at ? new Date(s.expires_at).toLocaleString() : 'never'} • {s.revoked_at ? 'revoked' : 'active'}
-                      </div>
-                    </div>
-                    {!s.revoked_at && <button className="danger" onClick={() => handleShareRevoke(s.user_id)}>Revoke</button>}
-                  </div>
-                ))}
-              </div>
-            )}
-
-            <div className="form-actions" style={{ marginTop: '14px' }}>
-              <button onClick={() => setShowShareModal(false)} className="secondary">Close</button>
             </div>
           </div>
         </div>

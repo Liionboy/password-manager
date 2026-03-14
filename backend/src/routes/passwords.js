@@ -21,12 +21,6 @@ router.get('/health', async (req, res) => {
       FROM passwords p
       LEFT JOIN users u ON p.user_id = u.id
       WHERE (p.user_id = $1
-          OR p.id IN (
-            SELECT password_id FROM shared_passwords
-            WHERE user_id = $1
-              AND revoked_at IS NULL
-              AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
-          )
           OR p.team_id IN (SELECT team_id FROM team_members WHERE user_id = $1)
           OR u.id IN (SELECT user_id FROM team_members WHERE team_id IN (SELECT team_id FROM team_members WHERE user_id = $1)))
       ORDER BY p.updated_at DESC
@@ -134,15 +128,14 @@ router.get('/', async (req, res) => {
 
     let query = `
       SELECT p.*, c.name as category_name, f.name as folder_name, t.name as team_name,
-        CASE WHEN p.user_id = $1 THEN 0 ELSE 1 END as is_shared,
-        u.username as owner_username
+        0 as is_shared,
+        NULL as owner_username
       FROM passwords p 
       LEFT JOIN categories c ON p.category_id = c.id 
       LEFT JOIN folders f ON p.folder_id = f.id
       LEFT JOIN users u ON p.user_id = u.id
       LEFT JOIN teams t ON p.team_id = t.id
       WHERE (p.user_id = $1 
-          OR p.id IN (SELECT password_id FROM shared_passwords WHERE user_id = $1)
           OR p.team_id IN (SELECT team_id FROM team_members WHERE user_id = $1)
           OR u.id IN (SELECT user_id FROM team_members WHERE team_id IN (SELECT team_id FROM team_members WHERE user_id = $1)))
     `;
@@ -171,7 +164,7 @@ router.get('/', async (req, res) => {
       query += ` AND p.folder_id IS NULL`;
     }
 
-    query += ` ORDER BY is_shared ASC, p.created_at DESC`;
+    query += ` ORDER BY p.created_at DESC`;
 
     const passwords = await db.prepare(query).all(...params);
 
@@ -204,13 +197,6 @@ router.get('/:id/history', async (req, res) => {
     const existing = await db.prepare(`
       SELECT p.* FROM passwords p
       WHERE p.id = $1 AND (p.user_id = $2
-        OR p.id IN (
-          SELECT password_id FROM shared_passwords
-          WHERE user_id = $2
-            AND permission = 'edit'
-            AND revoked_at IS NULL
-            AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
-        )
         OR p.team_id IN (SELECT team_id FROM team_members WHERE user_id = $2))
     `).get(id, userId);
 
@@ -254,12 +240,6 @@ router.post('/:id/restore/:historyId', async (req, res) => {
     const existing = await db.prepare(`
       SELECT p.* FROM passwords p
       WHERE p.id = $1 AND (p.user_id = $2
-        OR p.id IN (
-          SELECT password_id FROM shared_passwords
-          WHERE user_id = $2
-            AND revoked_at IS NULL
-            AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
-        )
         OR p.team_id IN (SELECT team_id FROM team_members WHERE user_id = $2))
     `).get(id, userId);
 
@@ -379,7 +359,6 @@ router.put('/:id', async (req, res) => {
     const existing = await db.prepare(`
       SELECT p.* FROM passwords p 
       WHERE p.id = $1 AND (p.user_id = $2 
-        OR p.id IN (SELECT password_id FROM shared_passwords WHERE user_id = $2)
         OR p.team_id IN (SELECT team_id FROM team_members WHERE user_id = $2))
     `).get(id, userId);
 
@@ -449,14 +428,7 @@ router.delete('/:id', async (req, res) => {
 
     const isOwner = existing.user_id === userId;
     const isTeamMember = existing.team_id && await db.prepare('SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2').get(existing.team_id, userId);
-    const isSharedWithUser = await db.prepare(`
-      SELECT 1 FROM shared_passwords
-      WHERE password_id = $1
-        AND user_id = $2
-        AND revoked_at IS NULL
-        AND (expires_at IS NULL OR expires_at > CURRENT_TIMESTAMP)
-    `).get(id, userId);
-    const canSeePassword = isOwner || isTeamMember || isSharedWithUser;
+    const canSeePassword = isOwner || isTeamMember;
     
     if (!canSeePassword) {
       return res.status(403).json({ error: 'You do not have access to this password' });
@@ -630,85 +602,6 @@ router.delete('/categories/:id', async (req, res) => {
     res.json({ message: 'Category deleted successfully' });
   } catch (error) {
     console.error('Delete category error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-router.post('/share/:id', async (req, res) => {
-  try {
-    const db = req.db;
-    const ownerId = req.user.id;
-    const { id } = req.params;
-    const { user_id, permission = 'view', expires_at = null } = req.body || {};
-
-    if (!user_id) return res.status(400).json({ error: 'user_id is required' });
-    if (!['view', 'edit'].includes(permission)) return res.status(400).json({ error: 'permission must be view or edit' });
-
-    const existing = await db.prepare('SELECT id, user_id FROM passwords WHERE id = $1').get(id);
-    if (!existing) return res.status(404).json({ error: 'Password not found' });
-    if (existing.user_id !== ownerId) return res.status(403).json({ error: 'Only owner can share password' });
-
-    await db.prepare(`
-      INSERT INTO shared_passwords (password_id, user_id, permission, expires_at, revoked_at)
-      VALUES ($1, $2, $3, $4, NULL)
-      ON CONFLICT (password_id, user_id)
-      DO UPDATE SET permission = EXCLUDED.permission, expires_at = EXCLUDED.expires_at, revoked_at = NULL
-    `).run(id, user_id, permission, expires_at || null);
-
-    res.json({ message: 'Password shared successfully' });
-  } catch (error) {
-    console.error('Share password error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-router.delete('/share/:id', async (req, res) => {
-  try {
-    const db = req.db;
-    const ownerId = req.user.id;
-    const { id } = req.params;
-    const { user_id } = req.query;
-
-    if (!user_id) return res.status(400).json({ error: 'user_id query param is required' });
-
-    const existing = await db.prepare('SELECT id, user_id FROM passwords WHERE id = $1').get(id);
-    if (!existing) return res.status(404).json({ error: 'Password not found' });
-    if (existing.user_id !== ownerId) return res.status(403).json({ error: 'Only owner can unshare password' });
-
-    await db.prepare(`
-      UPDATE shared_passwords
-      SET revoked_at = CURRENT_TIMESTAMP
-      WHERE password_id = $1 AND user_id = $2
-    `).run(id, user_id);
-
-    res.json({ message: 'Password unshared successfully' });
-  } catch (error) {
-    console.error('Unshare password error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
-});
-
-router.get('/shared/:id', async (req, res) => {
-  try {
-    const db = req.db;
-    const ownerId = req.user.id;
-    const { id } = req.params;
-
-    const existing = await db.prepare('SELECT id, user_id FROM passwords WHERE id = $1').get(id);
-    if (!existing) return res.status(404).json({ error: 'Password not found' });
-    if (existing.user_id !== ownerId) return res.status(403).json({ error: 'Only owner can view share settings' });
-
-    const shares = await db.prepare(`
-      SELECT sp.id, sp.user_id, u.username, sp.permission, sp.expires_at, sp.revoked_at, sp.created_at
-      FROM shared_passwords sp
-      JOIN users u ON u.id = sp.user_id
-      WHERE sp.password_id = $1
-      ORDER BY sp.created_at DESC
-    `).all(id);
-
-    res.json(shares);
-  } catch (error) {
-    console.error('Get shared users error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });

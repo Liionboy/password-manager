@@ -56,10 +56,7 @@ export const passwords = {
   delete: (id) => api.delete(`/passwords/${id}`),
   generate: (options) => api.post('/passwords/generate', options),
   export: () => api.get('/passwords/export'),
-  import: (passwords) => api.post('/passwords/import', { passwords }),
-  share: (id, userId, permission = 'view', expiresAt = null) => api.post(`/passwords/share/${id}`, { user_id: userId, permission, expires_at: expiresAt }),
-  unshare: (id, userId) => api.delete(`/passwords/share/${id}?user_id=${userId}`),
-  getShared: (id) => api.get(`/passwords/shared/${id}`)
+  import: (passwords) => api.post('/passwords/import', { passwords })
 };
 
 export const categories = {
