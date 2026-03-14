@@ -45,6 +45,8 @@ function Dashboard({ token, setToken, role = 'user' }) {
   const [selectedPasswordForShare, setSelectedPasswordForShare] = useState(null);
   const [shareList, setShareList] = useState([]);
   const [shareForm, setShareForm] = useState({ user_id: '', permission: 'view', expires_at: '' });
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [commandQuery, setCommandQuery] = useState('');
   const navigate = useNavigate();
 
   const showNotification = (message, type = 'success') => {
@@ -64,6 +66,20 @@ function Dashboard({ token, setToken, role = 'user' }) {
     loadFolders();
     if (role === 'admin') loadTeams();
   }, [search, selectedCategory, selectedFolder, activeTab, role]);
+
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setShowCommandPalette(true);
+      }
+      if (e.key === 'Escape') {
+        setShowCommandPalette(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
 
   const loadTeams = async () => {
     try {
@@ -358,6 +374,41 @@ function Dashboard({ token, setToken, role = 'user' }) {
       showNotification('Error revoking share: ' + (err.response?.data?.error || err.message), 'error');
     }
   };
+
+  const paletteEntries = [
+    ...passwordList.map(p => ({
+      type: 'password',
+      id: p.id,
+      title: p.title,
+      subtitle: p.username || '',
+      onOpen: () => navigate(`/edit/${p.id}`),
+      onCopy: () => handleCopy(p.password || '')
+    })),
+    ...cardList.map(c => ({
+      type: 'card',
+      id: c.id,
+      title: c.title,
+      subtitle: c.cardholder_name || '',
+      onOpen: () => navigate(`/edit-card/${c.id}`),
+      onCopy: () => handleCopy(c.card_number || '')
+    })),
+    ...noteList.map(n => ({
+      type: 'note',
+      id: n.id,
+      title: n.title,
+      subtitle: (n.content || '').slice(0, 40),
+      onOpen: () => { setActiveTab('notes'); },
+      onCopy: () => handleCopy(n.content || '')
+    }))
+  ];
+
+  const filteredPaletteEntries = paletteEntries
+    .filter(item => {
+      if (!commandQuery.trim()) return true;
+      const q = commandQuery.toLowerCase();
+      return item.title.toLowerCase().includes(q) || item.subtitle.toLowerCase().includes(q) || item.type.includes(q);
+    })
+    .slice(0, 20);
 
   const handleCopy = async (text) => {
     try {
@@ -1316,6 +1367,43 @@ function Dashboard({ token, setToken, role = 'user' }) {
 
             <div className="form-actions" style={{ marginTop: '14px' }}>
               <button onClick={() => setShowShareModal(false)} className="secondary">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCommandPalette && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10vh', zIndex: 4000
+        }} onClick={() => setShowCommandPalette(false)}>
+          <div className="form-container" style={{ width: '720px', maxWidth: '95%' }} onClick={(e) => e.stopPropagation()}>
+            <h2>Command Palette</h2>
+            <input
+              autoFocus
+              type="text"
+              value={commandQuery}
+              onChange={(e) => setCommandQuery(e.target.value)}
+              placeholder="Search passwords, cards, notes..."
+            />
+            <div style={{ marginTop: '12px', maxHeight: '360px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {filteredPaletteEntries.length === 0 ? (
+                <p style={{ color: '#94a3b8' }}>No results.</p>
+              ) : filteredPaletteEntries.map(item => (
+                <div key={`${item.type}-${item.id}`} style={{ border: '1px solid #334155', borderRadius: '8px', padding: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+                  <div>
+                    <div style={{ color: '#e2e8f0', fontWeight: 600 }}>{item.title}</div>
+                    <div style={{ color: '#94a3b8', fontSize: '12px' }}>{item.type} • {item.subtitle}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button className="secondary" onClick={() => { item.onCopy(); setShowCommandPalette(false); }}>Copy</button>
+                    <button className="success" onClick={() => { item.onOpen(); setShowCommandPalette(false); }}>Open</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="form-actions" style={{ marginTop: '12px' }}>
+              <button className="secondary" onClick={() => setShowCommandPalette(false)}>Close</button>
             </div>
           </div>
         </div>
