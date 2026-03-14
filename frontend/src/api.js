@@ -46,6 +46,8 @@ export const auth = {
 export const passwords = {
   getAll: (search, categoryId, folderId, all = false) => api.get('/passwords', { params: { search, category_id: categoryId, folder_id: folderId, all } }),
   getHealth: () => api.get('/passwords/health'),
+  getHistory: (id) => api.get(`/passwords/${id}/history`),
+  restoreHistory: (id, historyId) => api.post(`/passwords/${id}/restore/${historyId}`),
   create: (data) => api.post('/passwords', data),
   update: (id, data) => api.put(`/passwords/${id}`, data),
   delete: (id) => api.delete(`/passwords/${id}`),

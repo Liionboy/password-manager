@@ -234,6 +234,78 @@ router.get('/:id/history', async (req, res) => {
   }
 });
 
+router.post('/:id/restore/:historyId', async (req, res) => {
+  try {
+    const db = req.db;
+    const userId = req.user.id;
+    const { id, historyId } = req.params;
+
+    const existing = await db.prepare(`
+      SELECT p.* FROM passwords p
+      WHERE p.id = $1 AND (p.user_id = $2
+        OR p.id IN (SELECT password_id FROM shared_passwords WHERE user_id = $2)
+        OR p.team_id IN (SELECT team_id FROM team_members WHERE user_id = $2))
+    `).get(id, userId);
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Password not found' });
+    }
+
+    const historyVersion = await db.prepare(`
+      SELECT * FROM password_history
+      WHERE id = $1 AND password_id = $2
+    `).get(historyId, id);
+
+    if (!historyVersion) {
+      return res.status(404).json({ error: 'History version not found' });
+    }
+
+    // Snapshot current version before restore
+    await db.prepare(`
+      INSERT INTO password_history (password_id, user_id, title, username, encrypted_password, url, notes, category_id, folder_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `).run(
+      existing.id,
+      existing.user_id,
+      existing.title,
+      existing.username,
+      existing.encrypted_password,
+      existing.url,
+      existing.notes,
+      existing.category_id,
+      existing.folder_id
+    );
+
+    await db.prepare(`
+      UPDATE passwords
+      SET title = $1,
+          username = $2,
+          encrypted_password = $3,
+          url = $4,
+          notes = $5,
+          category_id = $6,
+          folder_id = $7,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $8 AND user_id = $9
+    `).run(
+      historyVersion.title,
+      historyVersion.username,
+      historyVersion.encrypted_password,
+      historyVersion.url,
+      historyVersion.notes,
+      historyVersion.category_id,
+      historyVersion.folder_id,
+      existing.id,
+      existing.user_id
+    );
+
+    res.json({ message: 'Password restored successfully' });
+  } catch (error) {
+    console.error('Restore password history error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.post('/', async (req, res) => {
   try {
     const db = req.db;

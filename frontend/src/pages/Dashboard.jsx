@@ -31,6 +31,10 @@ function Dashboard({ token, setToken, role = 'user' }) {
   const [passwordHealth, setPasswordHealth] = useState(null);
   const [healthLoading, setHealthLoading] = useState(false);
   const [healthFilter, setHealthFilter] = useState('');
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyList, setHistoryList] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [selectedPasswordForHistory, setSelectedPasswordForHistory] = useState(null);
   const navigate = useNavigate();
 
   const showNotification = (message, type = 'success') => {
@@ -264,6 +268,35 @@ function Dashboard({ token, setToken, role = 'user' }) {
     } catch (err) {
       console.error('Error copying:', err);
       showNotification('Failed to copy to clipboard', 'error');
+    }
+  };
+
+  const handleOpenHistory = async (passwordItem) => {
+    try {
+      setHistoryLoading(true);
+      setSelectedPasswordForHistory(passwordItem);
+      const response = await passwords.getHistory(passwordItem.id);
+      setHistoryList(response.data || []);
+      setShowHistoryModal(true);
+    } catch (err) {
+      showNotification('Error loading history: ' + (err.response?.data?.error || err.message), 'error');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handleRestoreHistory = async (historyId) => {
+    if (!selectedPasswordForHistory) return;
+    if (!window.confirm('Restore this version? Current version will be saved in history.')) return;
+
+    try {
+      await passwords.restoreHistory(selectedPasswordForHistory.id, historyId);
+      showNotification('Version restored successfully!');
+      setShowHistoryModal(false);
+      await loadPasswords();
+      await loadPasswordHealth();
+    } catch (err) {
+      showNotification('Error restoring version: ' + (err.response?.data?.error || err.message), 'error');
     }
   };
 
@@ -629,6 +662,7 @@ function Dashboard({ token, setToken, role = 'user' }) {
                       )}
                     </div>
                     <div className="password-actions">
+                      <button onClick={() => handleOpenHistory(pwd)} className="secondary">History</button>
                       <Link to={`/edit/${pwd.id}`}>
                         <button className="secondary">Edit</button>
                       </Link>
@@ -918,6 +952,49 @@ function Dashboard({ token, setToken, role = 'user' }) {
             <div className="form-actions">
               <button onClick={handleUpdateProfile} className="success">Save</button>
               <button onClick={() => { setShowProfileModal(false); setMfaSetupData(null); setMfaCode(''); }} className="secondary">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showHistoryModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0, 0, 0, 0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          backdropFilter: 'blur(4px)', zIndex: 3000
+        }}>
+          <div className="form-container" style={{ maxWidth: '760px', width: '95%', maxHeight: '85vh', overflowY: 'auto' }}>
+            <h2>Password History {selectedPasswordForHistory ? `- ${selectedPasswordForHistory.title}` : ''}</h2>
+
+            {historyLoading ? (
+              <p style={{ color: '#94a3b8' }}>Loading history...</p>
+            ) : historyList.length === 0 ? (
+              <p style={{ color: '#94a3b8' }}>No history versions yet.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {historyList.map(version => (
+                  <div key={version.id} style={{
+                    border: '1px solid #334155',
+                    borderRadius: '10px',
+                    padding: '12px',
+                    background: 'rgba(15, 23, 42, 0.6)'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+                      <div>
+                        <div style={{ fontWeight: 600, color: '#e2e8f0' }}>{version.title}</div>
+                        <div style={{ fontSize: '12px', color: '#94a3b8' }}>
+                          {new Date(version.version_created_at).toLocaleString()} • {version.username || 'no username'}
+                        </div>
+                      </div>
+                      <button onClick={() => handleRestoreHistory(version.id)} className="success">Restore</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="form-actions" style={{ marginTop: '16px' }}>
+              <button onClick={() => setShowHistoryModal(false)} className="secondary">Close</button>
             </div>
           </div>
         </div>
