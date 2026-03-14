@@ -17,6 +17,30 @@ const PORT = process.env.PORT || 5000;
 app.set('trust proxy', 1);
 app.use(helmet());
 
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many authentication attempts. Please try again later.' }
+});
+
+const sensitiveAuthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many attempts. Please try again later.' }
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests. Please slow down.' }
+});
+
 const db = new Database({
   host: process.env.DB_HOST || 'localhost',
   user: process.env.DB_USER || 'postgres',
@@ -275,6 +299,16 @@ app.use((req, res, next) => {
   req.db = db;
   next();
 });
+
+app.use('/api', apiLimiter);
+
+// Auth route tuning
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/refresh', authLimiter);
+app.use('/api/auth/forgot-password', sensitiveAuthLimiter);
+app.use('/api/auth/reset-password', sensitiveAuthLimiter);
+app.use('/api/auth/mfa/verify-temp', sensitiveAuthLimiter);
 
 // Attach audit logger to all requests
 app.use(createAuditLogger(db));
