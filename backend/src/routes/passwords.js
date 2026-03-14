@@ -11,6 +11,112 @@ router.use(authenticateToken);
 // Optional: uncomment to enable per-user encryption
 // router.use(requireEncryptionKey);
 
+router.get('/health', async (req, res) => {
+  try {
+    const db = req.db;
+    const userId = req.user.id;
+
+    const entries = await db.prepare(`
+      SELECT p.id, p.title, p.username, p.encrypted_password, p.updated_at, p.created_at
+      FROM passwords p
+      LEFT JOIN users u ON p.user_id = u.id
+      WHERE (p.user_id = $1
+          OR p.team_id IN (SELECT team_id FROM team_members WHERE user_id = $1)
+          OR u.id IN (SELECT user_id FROM team_members WHERE team_id IN (SELECT team_id FROM team_members WHERE user_id = $1)))
+      ORDER BY p.updated_at DESC
+    `).all(userId);
+
+    const now = Date.now();
+    const oldThresholdMs = 180 * 24 * 60 * 60 * 1000; // 180 days
+
+    const weak = [];
+    const old = [];
+    const decryptedEntries = [];
+    const passwordUsage = new Map();
+
+    const getStrengthClasses = (pwd = '') => {
+      const classes = [
+        /[A-Z]/.test(pwd),
+        /[a-z]/.test(pwd),
+        /[0-9]/.test(pwd),
+        /[^A-Za-z0-9]/.test(pwd)
+      ].filter(Boolean).length;
+      return classes;
+    };
+
+    for (const item of entries) {
+      let decryptedPassword = null;
+      try {
+        decryptedPassword = req.encryptionKey
+          ? decrypt(item.encrypted_password, req.encryptionKey)
+          : decrypt(item.encrypted_password);
+      } catch (e) {
+        decryptedPassword = null;
+      }
+
+      const updatedAt = item.updated_at ? new Date(item.updated_at).getTime() : 0;
+      const createdAt = item.created_at ? new Date(item.created_at).getTime() : 0;
+      const lastChange = updatedAt || createdAt;
+
+      if (decryptedPassword) {
+        const strengthClasses = getStrengthClasses(decryptedPassword);
+        if (decryptedPassword.length < 12 || strengthClasses < 3) {
+          weak.push({ id: item.id, title: item.title, username: item.username, reason: 'weak' });
+        }
+
+        const existing = passwordUsage.get(decryptedPassword) || [];
+        existing.push(item.id);
+        passwordUsage.set(decryptedPassword, existing);
+      }
+
+      if (!lastChange || now - lastChange > oldThresholdMs) {
+        old.push({ id: item.id, title: item.title, username: item.username, reason: 'old' });
+      }
+
+      decryptedEntries.push({ id: item.id, title: item.title, username: item.username, decryptedPassword });
+    }
+
+    const reusedIdSet = new Set();
+    for (const ids of passwordUsage.values()) {
+      if (ids.length > 1) {
+        ids.forEach(id => reusedIdSet.add(id));
+      }
+    }
+
+    const reused = decryptedEntries
+      .filter(e => reusedIdSet.has(e.id))
+      .map(e => ({ id: e.id, title: e.title, username: e.username, reason: 'reused' }));
+
+    const weakIds = new Set(weak.map(i => i.id));
+    const reusedIds = new Set(reused.map(i => i.id));
+    const oldIds = new Set(old.map(i => i.id));
+
+    const uniqueRiskyIds = new Set([...weakIds, ...reusedIds, ...oldIds]);
+    const total = entries.length;
+    const score = total === 0
+      ? 100
+      : Math.max(0, Math.round(100 - (uniqueRiskyIds.size / total) * 100));
+
+    res.json({
+      summary: {
+        total,
+        weak: weakIds.size,
+        reused: reusedIds.size,
+        old: oldIds.size,
+        score
+      },
+      byCategory: {
+        weak,
+        reused,
+        old
+      }
+    });
+  } catch (error) {
+    console.error('Get password health error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.get('/', async (req, res) => {
   try {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
@@ -22,15 +128,14 @@ router.get('/', async (req, res) => {
 
     let query = `
       SELECT p.*, c.name as category_name, f.name as folder_name, t.name as team_name,
-        CASE WHEN p.user_id = $1 THEN 0 ELSE 1 END as is_shared,
-        u.username as owner_username
+        0 as is_shared,
+        NULL as owner_username
       FROM passwords p 
       LEFT JOIN categories c ON p.category_id = c.id 
       LEFT JOIN folders f ON p.folder_id = f.id
       LEFT JOIN users u ON p.user_id = u.id
       LEFT JOIN teams t ON p.team_id = t.id
       WHERE (p.user_id = $1 
-          OR p.id IN (SELECT password_id FROM shared_passwords WHERE user_id = $1)
           OR p.team_id IN (SELECT team_id FROM team_members WHERE user_id = $1)
           OR u.id IN (SELECT user_id FROM team_members WHERE team_id IN (SELECT team_id FROM team_members WHERE user_id = $1)))
     `;
@@ -59,7 +164,7 @@ router.get('/', async (req, res) => {
       query += ` AND p.folder_id IS NULL`;
     }
 
-    query += ` ORDER BY is_shared ASC, p.created_at DESC`;
+    query += ` ORDER BY p.created_at DESC`;
 
     const passwords = await db.prepare(query).all(...params);
 
@@ -79,6 +184,120 @@ router.get('/', async (req, res) => {
     res.json(decrypted);
   } catch (error) {
     console.error('Get passwords error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/:id/history', async (req, res) => {
+  try {
+    const db = req.db;
+    const userId = req.user.id;
+    const { id } = req.params;
+
+    const existing = await db.prepare(`
+      SELECT p.* FROM passwords p
+      WHERE p.id = $1 AND (p.user_id = $2
+        OR p.team_id IN (SELECT team_id FROM team_members WHERE user_id = $2))
+    `).get(id, userId);
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Password not found' });
+    }
+
+    const history = await db.prepare(`
+      SELECT id, password_id, user_id, title, username, encrypted_password, url, notes, category_id, folder_id, version_created_at
+      FROM password_history
+      WHERE password_id = $1
+      ORDER BY version_created_at DESC
+    `).all(id);
+
+    const decrypted = history.map(v => {
+      try {
+        return {
+          ...v,
+          password: req.encryptionKey
+            ? decrypt(v.encrypted_password, req.encryptionKey)
+            : decrypt(v.encrypted_password)
+        };
+      } catch (e) {
+        return { ...v, password: '[DECRYPTION_FAILED]' };
+      }
+    });
+
+    res.json(decrypted);
+  } catch (error) {
+    console.error('Get password history error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/:id/restore/:historyId', async (req, res) => {
+  try {
+    const db = req.db;
+    const userId = req.user.id;
+    const { id, historyId } = req.params;
+
+    const existing = await db.prepare(`
+      SELECT p.* FROM passwords p
+      WHERE p.id = $1 AND (p.user_id = $2
+        OR p.team_id IN (SELECT team_id FROM team_members WHERE user_id = $2))
+    `).get(id, userId);
+
+    if (!existing) {
+      return res.status(404).json({ error: 'Password not found' });
+    }
+
+    const historyVersion = await db.prepare(`
+      SELECT * FROM password_history
+      WHERE id = $1 AND password_id = $2
+    `).get(historyId, id);
+
+    if (!historyVersion) {
+      return res.status(404).json({ error: 'History version not found' });
+    }
+
+    // Snapshot current version before restore
+    await db.prepare(`
+      INSERT INTO password_history (password_id, user_id, title, username, encrypted_password, url, notes, category_id, folder_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `).run(
+      existing.id,
+      existing.user_id,
+      existing.title,
+      existing.username,
+      existing.encrypted_password,
+      existing.url,
+      existing.notes,
+      existing.category_id,
+      existing.folder_id
+    );
+
+    await db.prepare(`
+      UPDATE passwords
+      SET title = $1,
+          username = $2,
+          encrypted_password = $3,
+          url = $4,
+          notes = $5,
+          category_id = $6,
+          folder_id = $7,
+          updated_at = CURRENT_TIMESTAMP
+      WHERE id = $8 AND user_id = $9
+    `).run(
+      historyVersion.title,
+      historyVersion.username,
+      historyVersion.encrypted_password,
+      historyVersion.url,
+      historyVersion.notes,
+      historyVersion.category_id,
+      historyVersion.folder_id,
+      existing.id,
+      existing.user_id
+    );
+
+    res.json({ message: 'Password restored successfully' });
+  } catch (error) {
+    console.error('Restore password history error:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
@@ -140,13 +359,28 @@ router.put('/:id', async (req, res) => {
     const existing = await db.prepare(`
       SELECT p.* FROM passwords p 
       WHERE p.id = $1 AND (p.user_id = $2 
-        OR p.id IN (SELECT password_id FROM shared_passwords WHERE user_id = $2)
         OR p.team_id IN (SELECT team_id FROM team_members WHERE user_id = $2))
     `).get(id, userId);
 
     if (!existing) {
       return res.status(404).json({ error: 'Password not found' });
     }
+
+    // Snapshot previous version before update
+    await db.prepare(`
+      INSERT INTO password_history (password_id, user_id, title, username, encrypted_password, url, notes, category_id, folder_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `).run(
+      existing.id,
+      existing.user_id,
+      existing.title,
+      existing.username,
+      existing.encrypted_password,
+      existing.url,
+      existing.notes,
+      existing.category_id,
+      existing.folder_id
+    );
 
     const encryptedPassword = password 
       ? (req.encryptionKey ? encrypt(password, req.encryptionKey) : encrypt(password))
@@ -194,11 +428,14 @@ router.delete('/:id', async (req, res) => {
 
     const isOwner = existing.user_id === userId;
     const isTeamMember = existing.team_id && await db.prepare('SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2').get(existing.team_id, userId);
-    const isSharedWithUser = await db.prepare('SELECT 1 FROM shared_passwords WHERE password_id = $1 AND user_id = $2').get(id, userId);
-    const canSeePassword = isOwner || isTeamMember || isSharedWithUser;
+    const canSeePassword = isOwner || isTeamMember;
     
     if (!canSeePassword) {
       return res.status(403).json({ error: 'You do not have access to this password' });
+    }
+
+    if (!isOwner && !isTeamMember) {
+      return res.status(403).json({ error: 'Only owner or team member can delete this password' });
     }
 
     const result = await db.prepare('DELETE FROM passwords WHERE id = $1').run(id);

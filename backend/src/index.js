@@ -10,6 +10,8 @@ const cardRoutes = require('./routes/cards');
 const settingsRoutes = require('./routes/settings');
 const folderRoutes = require('./routes/folders');
 const teamRoutes = require('./routes/teams');
+const notesRoutes = require('./routes/notes');
+const emergencyRoutes = require('./routes/emergency');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -22,7 +24,7 @@ const authLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many authentication attempts. Please try again later.' }
+  message: { error: 'Ai făcut prea multe încercări de autentificare. Te rog încearcă din nou în câteva minute.' }
 });
 
 const sensitiveAuthLimiter = rateLimit({
@@ -30,15 +32,16 @@ const sensitiveAuthLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many attempts. Please try again later.' }
+  message: { error: 'Prea multe încercări într-un timp scurt. Te rog încearcă din nou puțin mai târziu.' }
 });
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 300,
+  max: 600,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many requests. Please slow down.' }
+  skip: (req) => req.path.startsWith('/auth/'),
+  message: { error: 'Ai trimis foarte multe cereri într-un timp scurt. Încearcă din nou în 1-2 minute.' }
 });
 
 const db = new Database({
@@ -132,6 +135,24 @@ const initDB = async (retries = 10) => {
     `);
 
     await db.query(`
+      CREATE TABLE IF NOT EXISTS password_history (
+        id SERIAL PRIMARY KEY,
+        password_id INTEGER NOT NULL,
+        user_id INTEGER NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        username VARCHAR(255),
+        encrypted_password TEXT NOT NULL,
+        url TEXT,
+        notes TEXT,
+        category_id INTEGER,
+        folder_id INTEGER,
+        version_created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (password_id) REFERENCES passwords(id) ON DELETE CASCADE,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+
+    await db.query(`
       CREATE TABLE IF NOT EXISTS cards (
         id SERIAL PRIMARY KEY,
         user_id INTEGER NOT NULL,
@@ -187,6 +208,18 @@ const initDB = async (retries = 10) => {
     `);
 
     await db.query(`
+      CREATE TABLE IF NOT EXISTS secure_notes (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        encrypted_content TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+
+    await db.query(`
       CREATE TABLE IF NOT EXISTS shared_passwords (
         id SERIAL PRIMARY KEY,
         password_id INTEGER NOT NULL,
@@ -197,6 +230,11 @@ const initDB = async (retries = 10) => {
       )
     `);
 
+    await db.query(`ALTER TABLE shared_passwords ADD COLUMN IF NOT EXISTS permission VARCHAR(10) DEFAULT 'view'`);
+    await db.query(`ALTER TABLE shared_passwords ADD COLUMN IF NOT EXISTS expires_at TIMESTAMP NULL`);
+    await db.query(`ALTER TABLE shared_passwords ADD COLUMN IF NOT EXISTS revoked_at TIMESTAMP NULL`);
+    await db.query(`ALTER TABLE shared_passwords ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP`);
+
     await db.query(`
       CREATE TABLE IF NOT EXISTS shared_cards (
         id SERIAL PRIMARY KEY,
@@ -205,6 +243,34 @@ const initDB = async (retries = 10) => {
         FOREIGN KEY (card_id) REFERENCES cards(id) ON DELETE CASCADE,
         FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
         UNIQUE(card_id, user_id)
+      )
+    `);
+
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS emergency_contacts (
+        owner_user_id INTEGER NOT NULL,
+        contact_user_id INTEGER NOT NULL,
+        delay_hours INTEGER NOT NULL DEFAULT 168,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (owner_user_id, contact_user_id),
+        FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (contact_user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS emergency_access_requests (
+        id SERIAL PRIMARY KEY,
+        owner_user_id INTEGER NOT NULL,
+        contact_user_id INTEGER NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        grant_after TIMESTAMP NOT NULL,
+        decision_at TIMESTAMP NULL,
+        expires_at TIMESTAMP NULL,
+        revoked_at TIMESTAMP NULL,
+        FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (contact_user_id) REFERENCES users(id) ON DELETE CASCADE
       )
     `);
 
@@ -319,6 +385,8 @@ app.use('/api/cards', cardRoutes);
 app.use('/api/settings', settingsRoutes);
 app.use('/api/folders', folderRoutes);
 app.use('/api/teams', teamRoutes);
+app.use('/api/notes', notesRoutes);
+app.use('/api/emergency', emergencyRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });

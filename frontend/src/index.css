@@ -6,6 +6,7 @@
 
 :root {
   --bg-dark: #0a0e17;
+  --bg-mid: #1a1a2e;
   --bg-card: #111827;
   --bg-card-hover: #1a2234;
   --accent-cyan: #00f0ff;
@@ -14,13 +15,104 @@
   --text-primary: #e2e8f0;
   --text-secondary: #94a3b8;
   --border-color: #1e293b;
+  --input-bg: #0d1117;
   --glow-cyan: 0 0 20px rgba(0, 240, 255, 0.3);
   --glow-blue: 0 0 20px rgba(0, 102, 204, 0.3);
 }
 
+/* Nord Frost */
+[data-theme='nord-frost'] {
+  --bg-dark: #2E3440;
+  --bg-mid: #3B4252;
+  --bg-card: #3B4252;
+  --bg-card-hover: #434C5E;
+  --accent-cyan: #88C0D0;
+  --accent-blue: #5E81AC;
+  --accent-purple: #81A1C1;
+  --text-primary: #ECEFF4;
+  --text-secondary: #D8DEE9;
+  --border-color: #4C566A;
+  --input-bg: #2b3340;
+}
+
+/* Tokyo Night */
+[data-theme='tokyo-night'] {
+  --bg-dark: #1A1B26;
+  --bg-mid: #24283B;
+  --bg-card: #24283B;
+  --bg-card-hover: #2F354F;
+  --accent-cyan: #7DCFFF;
+  --accent-blue: #7AA2F7;
+  --accent-purple: #BB9AF7;
+  --text-primary: #C0CAF5;
+  --text-secondary: #9AA5CE;
+  --border-color: #3B4261;
+  --input-bg: #1f2335;
+}
+
+/* Catppuccin Mocha */
+[data-theme='catppuccin-mocha'] {
+  --bg-dark: #1E1E2E;
+  --bg-mid: #313244;
+  --bg-card: #313244;
+  --bg-card-hover: #45475A;
+  --accent-cyan: #89DCEB;
+  --accent-blue: #89B4FA;
+  --accent-purple: #CBA6F7;
+  --text-primary: #CDD6F4;
+  --text-secondary: #BAC2DE;
+  --border-color: #585B70;
+  --input-bg: #181825;
+}
+
+/* Dracula */
+[data-theme='dracula'] {
+  --bg-dark: #282A36;
+  --bg-mid: #343746;
+  --bg-card: #343746;
+  --bg-card-hover: #44475A;
+  --accent-cyan: #8BE9FD;
+  --accent-blue: #6272A4;
+  --accent-purple: #BD93F9;
+  --text-primary: #F8F8F2;
+  --text-secondary: #BFBFBF;
+  --border-color: #6272A4;
+  --input-bg: #1f2130;
+}
+
+/* Solarized Dark */
+[data-theme='solarized-dark'] {
+  --bg-dark: #002B36;
+  --bg-mid: #073642;
+  --bg-card: #073642;
+  --bg-card-hover: #0b4756;
+  --accent-cyan: #2AA198;
+  --accent-blue: #268BD2;
+  --accent-purple: #6C71C4;
+  --text-primary: #EEE8D5;
+  --text-secondary: #93A1A1;
+  --border-color: #586E75;
+  --input-bg: #01242d;
+}
+
+/* Graphite Minimal */
+[data-theme='graphite-minimal'] {
+  --bg-dark: #111827;
+  --bg-mid: #1F2937;
+  --bg-card: #1F2937;
+  --bg-card-hover: #273548;
+  --accent-cyan: #34D399;
+  --accent-blue: #60A5FA;
+  --accent-purple: #A78BFA;
+  --text-primary: #F3F4F6;
+  --text-secondary: #9CA3AF;
+  --border-color: #374151;
+  --input-bg: #111827;
+}
+
 body {
   font-family: 'Segoe UI', 'Roboto', 'Inter', sans-serif;
-  background: linear-gradient(135deg, #0a0e17 0%, #1a1a2e 50%, #0a0e17 100%);
+  background: linear-gradient(135deg, var(--bg-dark) 0%, var(--bg-mid) 50%, var(--bg-dark) 100%);
   min-height: 100vh;
   color: var(--text-primary);
   background-attachment: fixed;
@@ -101,7 +193,7 @@ label {
 input, select, textarea {
   width: 100%;
   padding: 14px 16px;
-  background: #0d1117;
+  background: var(--input-bg);
   border: 1px solid var(--border-color);
   border-radius: 8px;
   font-size: 14px;

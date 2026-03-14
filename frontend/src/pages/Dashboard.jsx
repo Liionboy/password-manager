@@ -1,12 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as OTPAuth from 'otpauth';
-import { passwords, categories, cards, folders as foldersApi, teams, auth } from '../api';
+import { passwords, categories, cards, notes, emergency, folders as foldersApi, teams, auth } from '../api';
 
 function Dashboard({ token, setToken, role = 'user' }) {
+  const isAdmin = String(role || localStorage.getItem('role') || 'user').toLowerCase() === 'admin';
   const [activeTab, setActiveTab] = useState('passwords');
   const [passwordList, setPasswordList] = useState([]);
   const [cardList, setCardList] = useState([]);
+  const [noteList, setNoteList] = useState([]);
   const [categoryList, setCategoryList] = useState([]);
   const [folderList, setFolderList] = useState([]);
   const [teamList, setTeamList] = useState([]);
@@ -21,6 +23,13 @@ function Dashboard({ token, setToken, role = 'user' }) {
   const [profileData, setProfileData] = useState({ email: '', mfa_enabled: false });
   const [mfaSetupData, setMfaSetupData] = useState(null);
   const [mfaCode, setMfaCode] = useState('');
+  const [sessionList, setSessionList] = useState([]);
+  const [currentSessionJti, setCurrentSessionJti] = useState('');
+  const [emergencyContacts, setEmergencyContacts] = useState([]);
+  const [emergencyIncoming, setEmergencyIncoming] = useState([]);
+  const [emergencyOutgoing, setEmergencyOutgoing] = useState([]);
+  const [allUsers, setAllUsers] = useState([]);
+  const [emergencyForm, setEmergencyForm] = useState({ contactUserId: '', delayHours: 168, ownerUserId: '' });
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [importData, setImportData] = useState('');
@@ -28,7 +37,29 @@ function Dashboard({ token, setToken, role = 'user' }) {
   const [newFolder, setNewFolder] = useState({ name: '', parent_id: '', team_id: '' });
   const [editFolder, setEditFolder] = useState({ id: '', name: '', parent_id: '', team_id: '' });
   const [notifications, setNotifications] = useState([]);
+  const [passwordHealth, setPasswordHealth] = useState(null);
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [healthFilter, setHealthFilter] = useState('');
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+  const [historyList, setHistoryList] = useState([]);
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [selectedPasswordForHistory, setSelectedPasswordForHistory] = useState(null);
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [editingNote, setEditingNote] = useState(null);
+  const [noteForm, setNoteForm] = useState({ title: '', content: '' });
+  const [showCommandPalette, setShowCommandPalette] = useState(false);
+  const [commandQuery, setCommandQuery] = useState('');
+  const [theme, setTheme] = useState(() => localStorage.getItem('uiTheme') || 'nord-frost');
   const navigate = useNavigate();
+
+  const themeOptions = [
+    { value: 'nord-frost', label: 'Nord Frost' },
+    { value: 'tokyo-night', label: 'Tokyo Night' },
+    { value: 'catppuccin-mocha', label: 'Catppuccin Mocha' },
+    { value: 'dracula', label: 'Dracula' },
+    { value: 'solarized-dark', label: 'Solarized Dark' },
+    { value: 'graphite-minimal', label: 'Graphite Minimal' }
+  ];
 
   const showNotification = (message, type = 'success') => {
     const id = Date.now();
@@ -42,10 +73,30 @@ function Dashboard({ token, setToken, role = 'user' }) {
     console.log('useEffect triggered, selectedFolder:', selectedFolder);
     loadPasswords();
     loadCards();
+    loadNotes();
     loadCategories();
     loadFolders();
-    if (role === 'admin') loadTeams();
+    if (isAdmin) loadTeams();
   }, [search, selectedCategory, selectedFolder, activeTab, role]);
+
+  useEffect(() => {
+    const onKeyDown = (e) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setShowCommandPalette(true);
+      }
+      if (e.key === 'Escape') {
+        setShowCommandPalette(false);
+      }
+    };
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('uiTheme', theme);
+  }, [theme]);
 
   const loadTeams = async () => {
     try {
@@ -67,6 +118,24 @@ function Dashboard({ token, setToken, role = 'user' }) {
     }
   };
 
+  const loadPasswordHealth = async () => {
+    try {
+      setHealthLoading(true);
+      const response = await passwords.getHealth();
+      setPasswordHealth(response.data);
+    } catch (err) {
+      console.error('Error loading password health:', err);
+    } finally {
+      setHealthLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'passwords') {
+      loadPasswordHealth();
+    }
+  }, [activeTab, passwordList.length]);
+
   const loadCards = async () => {
     try {
       const folderParam = selectedFolder ? selectedFolder : undefined;
@@ -74,6 +143,15 @@ function Dashboard({ token, setToken, role = 'user' }) {
       setCardList(response.data);
     } catch (err) {
       console.error('Error loading cards:', err);
+    }
+  };
+
+  const loadNotes = async () => {
+    try {
+      const response = await notes.getAll(search || undefined);
+      setNoteList(response.data);
+    } catch (err) {
+      console.error('Error loading notes:', err);
     }
   };
 
@@ -222,6 +300,88 @@ function Dashboard({ token, setToken, role = 'user' }) {
     }
   };
 
+  const openCreateNoteModal = () => {
+    setEditingNote(null);
+    setNoteForm({ title: '', content: '' });
+    setShowNoteModal(true);
+  };
+
+  const openEditNoteModal = (note) => {
+    setEditingNote(note);
+    setNoteForm({ title: note.title || '', content: note.content || '' });
+    setShowNoteModal(true);
+  };
+
+  const handleSaveNote = async () => {
+    try {
+      if (!noteForm.title.trim() || !noteForm.content.trim()) {
+        showNotification('Title and content are required', 'error');
+        return;
+      }
+
+      if (editingNote) {
+        await notes.update(editingNote.id, { title: noteForm.title, content: noteForm.content });
+        showNotification('Note updated successfully!');
+      } else {
+        await notes.create({ title: noteForm.title, content: noteForm.content });
+        showNotification('Note created successfully!');
+      }
+
+      setShowNoteModal(false);
+      setEditingNote(null);
+      setNoteForm({ title: '', content: '' });
+      loadNotes();
+    } catch (err) {
+      showNotification('Error saving note: ' + (err.response?.data?.error || err.message), 'error');
+    }
+  };
+
+  const handleDeleteNote = async (id) => {
+    if (!window.confirm('Delete this note?')) return;
+    try {
+      await notes.delete(id);
+      showNotification('Note deleted successfully!');
+      loadNotes();
+    } catch (err) {
+      showNotification('Error deleting note: ' + (err.response?.data?.error || err.message), 'error');
+    }
+  };
+
+  const paletteEntries = [
+    ...passwordList.map(p => ({
+      type: 'password',
+      id: p.id,
+      title: p.title,
+      subtitle: p.username || '',
+      onOpen: () => navigate(`/edit/${p.id}`),
+      onCopy: () => handleCopy(p.password || '')
+    })),
+    ...cardList.map(c => ({
+      type: 'card',
+      id: c.id,
+      title: c.title,
+      subtitle: c.cardholder_name || '',
+      onOpen: () => navigate(`/edit-card/${c.id}`),
+      onCopy: () => handleCopy(c.card_number || '')
+    })),
+    ...noteList.map(n => ({
+      type: 'note',
+      id: n.id,
+      title: n.title,
+      subtitle: (n.content || '').slice(0, 40),
+      onOpen: () => { setActiveTab('notes'); },
+      onCopy: () => handleCopy(n.content || '')
+    }))
+  ];
+
+  const filteredPaletteEntries = paletteEntries
+    .filter(item => {
+      if (!commandQuery.trim()) return true;
+      const q = commandQuery.toLowerCase();
+      return item.title.toLowerCase().includes(q) || item.subtitle.toLowerCase().includes(q) || item.type.includes(q);
+    })
+    .slice(0, 20);
+
   const handleCopy = async (text) => {
     try {
       if (window.isSecureContext) {
@@ -243,6 +403,35 @@ function Dashboard({ token, setToken, role = 'user' }) {
     } catch (err) {
       console.error('Error copying:', err);
       showNotification('Failed to copy to clipboard', 'error');
+    }
+  };
+
+  const handleOpenHistory = async (passwordItem) => {
+    try {
+      setHistoryLoading(true);
+      setSelectedPasswordForHistory(passwordItem);
+      const response = await passwords.getHistory(passwordItem.id);
+      setHistoryList(response.data || []);
+      setShowHistoryModal(true);
+    } catch (err) {
+      showNotification('Error loading history: ' + (err.response?.data?.error || err.message), 'error');
+    } finally {
+      setHistoryLoading(false);
+    }
+  };
+
+  const handleRestoreHistory = async (historyId) => {
+    if (!selectedPasswordForHistory) return;
+    if (!window.confirm('Restore this version? Current version will be saved in history.')) return;
+
+    try {
+      await passwords.restoreHistory(selectedPasswordForHistory.id, historyId);
+      showNotification('Version restored successfully!');
+      setShowHistoryModal(false);
+      await loadPasswords();
+      await loadPasswordHealth();
+    } catch (err) {
+      showNotification('Error restoring version: ' + (err.response?.data?.error || err.message), 'error');
     }
   };
 
@@ -290,8 +479,95 @@ function Dashboard({ token, setToken, role = 'user' }) {
     try {
       const response = await auth.getProfile();
       setProfileData({ email: response.data.email || '', mfa_enabled: response.data.mfa_enabled || false });
+
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (refreshToken) {
+        try {
+          const payload = JSON.parse(atob(refreshToken.split('.')[1]));
+          setCurrentSessionJti(payload?.jti || '');
+        } catch {
+          setCurrentSessionJti('');
+        }
+      }
+
+      const sessionsRes = await auth.getSessions();
+      setSessionList(sessionsRes.data || []);
+
+      const [contactsRes, incomingRes, outgoingRes] = await Promise.all([
+        emergency.getContacts(),
+        emergency.getIncoming(),
+        emergency.getOutgoing()
+      ]);
+      setEmergencyContacts(contactsRes.data || []);
+      setEmergencyIncoming(incomingRes.data || []);
+      setEmergencyOutgoing(outgoingRes.data || []);
+
+      try {
+        const usersRes = await auth.getUsers();
+        setAllUsers(usersRes.data || []);
+      } catch {
+        setAllUsers([]);
+      }
     } catch (err) {
       console.error('Error loading profile:', err);
+    }
+  };
+
+  const handleRevokeSession = async (sessionId) => {
+    if (!window.confirm('Revoke this session?')) return;
+    try {
+      await auth.revokeSession(sessionId);
+      showNotification('Session revoked successfully!');
+      await loadProfile();
+    } catch (err) {
+      showNotification('Error revoking session: ' + (err.response?.data?.error || err.message), 'error');
+    }
+  };
+
+  const handleRevokeOthers = async () => {
+    if (!window.confirm('Revoke all sessions except current device?')) return;
+    try {
+      const refreshToken = localStorage.getItem('refreshToken');
+      await auth.revokeOtherSessions(refreshToken);
+      showNotification('All other sessions revoked!');
+      await loadProfile();
+    } catch (err) {
+      showNotification('Error revoking other sessions: ' + (err.response?.data?.error || err.message), 'error');
+    }
+  };
+
+  const handleAddEmergencyContact = async () => {
+    try {
+      await emergency.addContact(Number(emergencyForm.contactUserId), Number(emergencyForm.delayHours || 168));
+      showNotification('Emergency contact saved!');
+      setEmergencyForm(prev => ({ ...prev, contactUserId: '' }));
+      await loadProfile();
+    } catch (err) {
+      showNotification('Error adding emergency contact: ' + (err.response?.data?.error || err.message), 'error');
+    }
+  };
+
+  const handleRequestEmergencyAccess = async () => {
+    try {
+      await emergency.requestAccess(Number(emergencyForm.ownerUserId));
+      showNotification('Emergency access request submitted!');
+      setEmergencyForm(prev => ({ ...prev, ownerUserId: '' }));
+      await loadProfile();
+    } catch (err) {
+      showNotification('Error requesting emergency access: ' + (err.response?.data?.error || err.message), 'error');
+    }
+  };
+
+  const handleEmergencyAction = async (action, requestId) => {
+    try {
+      if (action === 'approve') await emergency.approve(requestId);
+      if (action === 'deny') await emergency.deny(requestId);
+      if (action === 'revoke') await emergency.revoke(requestId);
+      if (action === 'finalize') await emergency.finalizeAuto(requestId);
+      showNotification(`Emergency request ${action}d successfully!`);
+      await loadProfile();
+    } catch (err) {
+      showNotification('Error on emergency action: ' + (err.response?.data?.error || err.message), 'error');
     }
   };
 
@@ -375,6 +651,14 @@ function Dashboard({ token, setToken, role = 'user' }) {
     return '**** **** **** ' + number.slice(-4);
   };
 
+  const activeHealthIds = healthFilter && passwordHealth?.byCategory?.[healthFilter]
+    ? new Set(passwordHealth.byCategory[healthFilter].map(item => item.id))
+    : null;
+
+  const displayedPasswords = activeHealthIds
+    ? passwordList.filter(p => activeHealthIds.has(p.id))
+    : passwordList;
+
   return (
     <div>
       <div style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 9999 }}>
@@ -407,11 +691,14 @@ function Dashboard({ token, setToken, role = 'user' }) {
             <h1>Password Manager</h1>
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
+            <select value={theme} onChange={(e) => setTheme(e.target.value)} style={{ width: '210px' }}>
+              {themeOptions.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
             <button onClick={handleProfileClick} className="secondary">Profile</button>
             <Link to="/teams">
               <button className="secondary">Teams</button>
             </Link>
-            {role === 'admin' && (
+            {isAdmin && (
               <>
                 <Link to="/team">
                   <button className="secondary">Users</button>
@@ -473,6 +760,12 @@ function Dashboard({ token, setToken, role = 'user' }) {
             >
               Cards
             </button>
+            <button
+              className={activeTab === 'notes' ? 'tab active' : 'tab'}
+              onClick={() => setActiveTab('notes')}
+            >
+              Notes
+            </button>
           </div>
 
           <div className="actions-bar">
@@ -481,10 +774,12 @@ function Dashboard({ token, setToken, role = 'user' }) {
                 <Link to={selectedFolder ? `/add?folder_id=${selectedFolder}` : `/add`}>
                   <button className="success">+ Add Password</button>
                 </Link>
-              ) : (
+              ) : activeTab === 'cards' ? (
                 <Link to={selectedFolder ? `/add-card?folder_id=${selectedFolder}` : `/add-card`}>
                   <button className="success">+ Add Card</button>
                 </Link>
+              ) : (
+                <button className="success" onClick={openCreateNoteModal}>+ Add Note</button>
               )}
               {activeTab === 'passwords' && (
                 <>
@@ -515,13 +810,53 @@ function Dashboard({ token, setToken, role = 'user' }) {
           </div>
 
           {activeTab === 'passwords' && (
-            passwordList.length === 0 ? (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, minmax(120px, 1fr))',
+              gap: '10px',
+              marginBottom: '16px'
+            }}>
+              <div style={{ background: 'rgba(0, 240, 255, 0.08)', border: '1px solid rgba(0, 240, 255, 0.25)', borderRadius: '10px', padding: '12px' }}>
+                <div style={{ fontSize: '12px', color: '#94a3b8' }}>Health Score</div>
+                <div style={{ fontSize: '24px', fontWeight: 700, color: '#00f0ff' }}>
+                  {healthLoading ? '...' : (passwordHealth?.summary?.score ?? 0)}
+                </div>
+              </div>
+
+              {[
+                { key: 'weak', label: 'Weak', color: '#f59e0b' },
+                { key: 'reused', label: 'Reused', color: '#ef4444' },
+                { key: 'old', label: 'Old (>180d)', color: '#f97316' }
+              ].map(metric => (
+                <button
+                  key={metric.key}
+                  onClick={() => setHealthFilter(prev => prev === metric.key ? '' : metric.key)}
+                  style={{
+                    textAlign: 'left',
+                    background: healthFilter === metric.key ? 'rgba(255,255,255,0.08)' : 'rgba(15, 23, 42, 0.6)',
+                    border: `1px solid ${metric.color}55`,
+                    borderRadius: '10px',
+                    padding: '12px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <div style={{ fontSize: '12px', color: '#94a3b8' }}>{metric.label}</div>
+                  <div style={{ fontSize: '24px', fontWeight: 700, color: metric.color }}>
+                    {healthLoading ? '...' : (passwordHealth?.summary?.[metric.key] ?? 0)}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {activeTab === 'passwords' && (
+            displayedPasswords.length === 0 ? (
               <div className="empty-state">
-                <p>No passwords found. Add your first password!</p>
+                <p>{healthFilter ? 'No passwords match this health filter.' : 'No passwords found. Add your first password!'}</p>
               </div>
             ) : (
               <div className="password-list">
-                {passwordList.map(pwd => (
+                {displayedPasswords.map(pwd => (
                   <div key={pwd.id} className="password-card">
                     <div className="password-info">
                       <h3>
@@ -560,6 +895,7 @@ function Dashboard({ token, setToken, role = 'user' }) {
                       )}
                     </div>
                     <div className="password-actions">
+                      <button onClick={() => handleOpenHistory(pwd)} className="secondary">History</button>
                       <Link to={`/edit/${pwd.id}`}>
                         <button className="secondary">Edit</button>
                       </Link>
@@ -604,6 +940,30 @@ function Dashboard({ token, setToken, role = 'user' }) {
               </div>
             )
           )}
+
+          {activeTab === 'notes' && (
+            noteList.length === 0 ? (
+              <div className="empty-state">
+                <p>No notes found. Add your first secure note!</p>
+              </div>
+            ) : (
+              <div className="password-list">
+                {noteList.map(note => (
+                  <div key={note.id} className="password-card">
+                    <div className="password-info">
+                      <h3>{note.title}</h3>
+                      <p style={{ whiteSpace: 'pre-wrap' }}>{note.content}</p>
+                    </div>
+                    <div className="password-actions">
+                      <button onClick={() => handleCopy(note.content)} className="secondary">Copy</button>
+                      <button onClick={() => openEditNoteModal(note)} className="secondary">Edit</button>
+                      <button onClick={() => handleDeleteNote(note.id)} className="danger">Delete</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )
+          )}
         </div>
       </div>
 
@@ -636,7 +996,7 @@ function Dashboard({ token, setToken, role = 'user' }) {
                 ))}
               </select>
             </div>
-            {role === 'admin' && (
+            {isAdmin && (
               <div className="form-group">
                 <label>Team (optional)</label>
                 <select
@@ -687,7 +1047,7 @@ function Dashboard({ token, setToken, role = 'user' }) {
                 ))}
               </select>
             </div>
-            {role === 'admin' && (
+            {isAdmin && (
               <div className="form-group">
                 <label>Team</label>
                 <select
@@ -846,9 +1206,241 @@ function Dashboard({ token, setToken, role = 'user' }) {
               )}
             </div>
 
+            <div style={{ marginTop: '20px', padding: '15px', background: '#1a1a2e', borderRadius: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                <h3 style={{ marginTop: 0, marginBottom: 0 }}>Active Sessions</h3>
+                <button onClick={handleRevokeOthers} className="danger">Revoke all except current</button>
+              </div>
+
+              {sessionList.length === 0 ? (
+                <p style={{ color: '#94a3b8', marginTop: '10px' }}>No active sessions found.</p>
+              ) : (
+                <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {sessionList.map(s => {
+                    const isCurrent = currentSessionJti && s.token_jti === currentSessionJti && !s.revoked_at;
+                    return (
+                      <div key={s.id} style={{ border: '1px solid #334155', borderRadius: '8px', padding: '10px', background: 'rgba(15,23,42,0.6)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                          <div>
+                            <div style={{ color: '#e2e8f0', fontWeight: 600 }}>
+                              {isCurrent ? '🟢 Current device' : 'Device session'}
+                            </div>
+                            <div style={{ color: '#94a3b8', fontSize: '12px' }}>
+                              {s.user_agent || 'Unknown agent'}
+                            </div>
+                            <div style={{ color: '#64748b', fontSize: '12px' }}>
+                              IP: {s.ip_address || '-'} • Created: {new Date(s.created_at).toLocaleString()}
+                            </div>
+                          </div>
+                          {!isCurrent && !s.revoked_at && (
+                            <button onClick={() => handleRevokeSession(s.id)} className="secondary">Revoke</button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div style={{ marginTop: '20px', padding: '15px', background: '#1a1a2e', borderRadius: '8px' }}>
+              <h3 style={{ marginTop: 0 }}>Emergency Access</h3>
+
+              <div className="form-group">
+                <label>Add trusted contact (User ID)</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <select
+                    value={emergencyForm.contactUserId}
+                    onChange={(e) => setEmergencyForm({ ...emergencyForm, contactUserId: e.target.value })}
+                  >
+                    <option value="">Select contact user</option>
+                    {allUsers
+                      .filter(u => Number(u.id) !== Number(localStorage.getItem('userId')))
+                      .map(u => (
+                        <option key={u.id} value={u.id}>{u.username} (#{u.id})</option>
+                      ))}
+                  </select>
+                  <input
+                    type="number"
+                    value={emergencyForm.delayHours}
+                    onChange={(e) => setEmergencyForm({ ...emergencyForm, delayHours: e.target.value })}
+                    placeholder="Delay hours"
+                    style={{ maxWidth: '140px' }}
+                  />
+                  <button onClick={handleAddEmergencyContact} className="success">Save</button>
+                </div>
+              </div>
+
+              <div style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '8px' }}>Configured contacts:</div>
+              {emergencyContacts.length === 0 ? (
+                <p style={{ color: '#64748b' }}>No emergency contacts configured.</p>
+              ) : (
+                emergencyContacts.map(c => (
+                  <div key={`${c.owner_user_id}-${c.contact_user_id}`} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <span>{c.contact_username} (id: {c.contact_user_id}) • delay: {c.delay_hours}h</span>
+                    <button className="danger" onClick={async () => { await emergency.removeContact(c.contact_user_id); await loadProfile(); }}>Remove</button>
+                  </div>
+                ))
+              )}
+
+              <hr style={{ borderColor: '#334155', margin: '14px 0' }} />
+
+              <div className="form-group">
+                <label>Request access to owner (User ID)</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <select
+                    value={emergencyForm.ownerUserId}
+                    onChange={(e) => setEmergencyForm({ ...emergencyForm, ownerUserId: e.target.value })}
+                  >
+                    <option value="">Select owner user</option>
+                    {allUsers
+                      .filter(u => Number(u.id) !== Number(localStorage.getItem('userId')))
+                      .map(u => (
+                        <option key={u.id} value={u.id}>{u.username} (#{u.id})</option>
+                      ))}
+                  </select>
+                  <button onClick={handleRequestEmergencyAccess} className="secondary">Request</button>
+                </div>
+              </div>
+
+              <div style={{ color: '#94a3b8', fontSize: '13px', marginTop: '8px' }}>Incoming requests:</div>
+              {(emergencyIncoming || []).map(r => (
+                <div key={`in-${r.id}`} style={{ border: '1px solid #334155', borderRadius: '8px', padding: '8px', marginTop: '6px' }}>
+                  <div style={{ fontSize: '13px' }}>From: {r.contact_username} • status: {r.status}</div>
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                    {r.status === 'pending' && <button className="success" onClick={() => handleEmergencyAction('approve', r.id)}>Approve</button>}
+                    {r.status === 'pending' && <button className="secondary" onClick={() => handleEmergencyAction('deny', r.id)}>Deny</button>}
+                    {(r.status === 'approved' || r.status === 'auto_granted') && <button className="danger" onClick={() => handleEmergencyAction('revoke', r.id)}>Revoke</button>}
+                    {r.status === 'pending' && <button className="secondary" onClick={() => handleEmergencyAction('finalize', r.id)}>Finalize if ready</button>}
+                  </div>
+                </div>
+              ))}
+
+              <div style={{ color: '#94a3b8', fontSize: '13px', marginTop: '10px' }}>Your outgoing requests:</div>
+              {(emergencyOutgoing || []).map(r => (
+                <div key={`out-${r.id}`} style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
+                  To owner {r.owner_username} • status: {r.status} • grant after: {r.grant_after ? new Date(r.grant_after).toLocaleString() : '-'}
+                </div>
+              ))}
+            </div>
+
             <div className="form-actions">
               <button onClick={handleUpdateProfile} className="success">Save</button>
               <button onClick={() => { setShowProfileModal(false); setMfaSetupData(null); setMfaCode(''); }} className="secondary">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showHistoryModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0, 0, 0, 0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          backdropFilter: 'blur(4px)', zIndex: 3000
+        }}>
+          <div className="form-container" style={{ maxWidth: '760px', width: '95%', maxHeight: '85vh', overflowY: 'auto' }}>
+            <h2>Password History {selectedPasswordForHistory ? `- ${selectedPasswordForHistory.title}` : ''}</h2>
+
+            {historyLoading ? (
+              <p style={{ color: '#94a3b8' }}>Loading history...</p>
+            ) : historyList.length === 0 ? (
+              <p style={{ color: '#94a3b8' }}>No history versions yet.</p>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                {historyList.map(version => (
+                  <div key={version.id} style={{
+                    border: '1px solid #334155',
+                    borderRadius: '10px',
+                    padding: '12px',
+                    background: 'rgba(15, 23, 42, 0.6)'
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+                      <div>
+                        <div style={{ fontWeight: 600, color: '#e2e8f0' }}>{version.title}</div>
+                        <div style={{ fontSize: '12px', color: '#94a3b8' }}>
+                          {new Date(version.version_created_at).toLocaleString()} • {version.username || 'no username'}
+                        </div>
+                      </div>
+                      <button onClick={() => handleRestoreHistory(version.id)} className="success">Restore</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="form-actions" style={{ marginTop: '16px' }}>
+              <button onClick={() => setShowHistoryModal(false)} className="secondary">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showNoteModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          backdropFilter: 'blur(4px)', zIndex: 3000
+        }}>
+          <div className="form-container" style={{ maxWidth: '600px', width: '95%' }}>
+            <h2>{editingNote ? 'Edit Note' : 'Add Secure Note'}</h2>
+            <div className="form-group">
+              <label>Title</label>
+              <input
+                type="text"
+                value={noteForm.title}
+                onChange={(e) => setNoteForm({ ...noteForm, title: e.target.value })}
+                placeholder="e.g., Recovery Codes"
+              />
+            </div>
+            <div className="form-group">
+              <label>Content</label>
+              <textarea
+                value={noteForm.content}
+                onChange={(e) => setNoteForm({ ...noteForm, content: e.target.value })}
+                placeholder="Write your secure note here..."
+                style={{ minHeight: '160px' }}
+              />
+            </div>
+            <div className="form-actions">
+              <button onClick={handleSaveNote} className="success">{editingNote ? 'Save Changes' : 'Create Note'}</button>
+              <button onClick={() => setShowNoteModal(false)} className="secondary">Cancel</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showCommandPalette && (
+        <div style={{
+          position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.75)',
+          display: 'flex', alignItems: 'flex-start', justifyContent: 'center', paddingTop: '10vh', zIndex: 4000
+        }} onClick={() => setShowCommandPalette(false)}>
+          <div className="form-container" style={{ width: '720px', maxWidth: '95%' }} onClick={(e) => e.stopPropagation()}>
+            <h2>Command Palette</h2>
+            <input
+              autoFocus
+              type="text"
+              value={commandQuery}
+              onChange={(e) => setCommandQuery(e.target.value)}
+              placeholder="Search passwords, cards, notes..."
+            />
+            <div style={{ marginTop: '12px', maxHeight: '360px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+              {filteredPaletteEntries.length === 0 ? (
+                <p style={{ color: '#94a3b8' }}>No results.</p>
+              ) : filteredPaletteEntries.map(item => (
+                <div key={`${item.type}-${item.id}`} style={{ border: '1px solid #334155', borderRadius: '8px', padding: '10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '10px' }}>
+                  <div>
+                    <div style={{ color: '#e2e8f0', fontWeight: 600 }}>{item.title}</div>
+                    <div style={{ color: '#94a3b8', fontSize: '12px' }}>{item.type} • {item.subtitle}</div>
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <button className="secondary" onClick={() => { item.onCopy(); setShowCommandPalette(false); }}>Copy</button>
+                    <button className="success" onClick={() => { item.onOpen(); setShowCommandPalette(false); }}>Open</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="form-actions" style={{ marginTop: '12px' }}>
+              <button className="secondary" onClick={() => setShowCommandPalette(false)}>Close</button>
             </div>
           </div>
         </div>

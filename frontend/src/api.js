@@ -39,21 +39,24 @@ export const auth = {
     const tempToken = localStorage.getItem('tempToken');
     return api.post('/auth/mfa/verify-temp', { tempToken, code });
   },
+  getSessions: () => api.get('/auth/sessions'),
+  revokeSession: (id) => api.post(`/auth/sessions/${id}/revoke`),
+  revokeOtherSessions: (refreshToken) => api.post('/auth/sessions/revoke-others', { refreshToken }),
   forgotPassword: (username) => api.post('/auth/forgot-password', JSON.stringify({ username }), { headers: { 'Content-Type': 'application/json' } }),
   resetPassword: (data) => api.post('/auth/reset-password', JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } })
 };
 
 export const passwords = {
   getAll: (search, categoryId, folderId, all = false) => api.get('/passwords', { params: { search, category_id: categoryId, folder_id: folderId, all } }),
+  getHealth: () => api.get('/passwords/health'),
+  getHistory: (id) => api.get(`/passwords/${id}/history`),
+  restoreHistory: (id, historyId) => api.post(`/passwords/${id}/restore/${historyId}`),
   create: (data) => api.post('/passwords', data),
   update: (id, data) => api.put(`/passwords/${id}`, data),
   delete: (id) => api.delete(`/passwords/${id}`),
   generate: (options) => api.post('/passwords/generate', options),
   export: () => api.get('/passwords/export'),
-  import: (passwords) => api.post('/passwords/import', { passwords }),
-  share: (id, userId) => api.post(`/passwords/share/${id}`, { user_id: userId }),
-  unshare: (id, userId) => api.delete(`/passwords/share/${id}?user_id=${userId}`),
-  getShared: (id) => api.get(`/passwords/shared/${id}`)
+  import: (passwords) => api.post('/passwords/import', { passwords })
 };
 
 export const categories = {
@@ -67,6 +70,13 @@ export const cards = {
   create: (data) => api.post('/cards', data),
   update: (id, data) => api.put(`/cards/${id}`, data),
   delete: (id) => api.delete(`/cards/${id}`)
+};
+
+export const notes = {
+  getAll: (search) => api.get('/notes', { params: { search } }),
+  create: (data) => api.post('/notes', data),
+  update: (id, data) => api.put(`/notes/${id}`, data),
+  delete: (id) => api.delete(`/notes/${id}`)
 };
 
 export const folders = {
@@ -91,6 +101,19 @@ export const settings = {
   get: () => api.get('/settings'),
   save: (data) => api.put('/settings', data),
   testEmail: (data) => api.post('/settings/test-email', data)
+};
+
+export const emergency = {
+  getContacts: () => api.get('/emergency/contacts'),
+  addContact: (contactUserId, delayHours = 168) => api.post('/emergency/contacts', { contact_user_id: contactUserId, delay_hours: delayHours }),
+  removeContact: (contactUserId) => api.delete(`/emergency/contacts/${contactUserId}`),
+  requestAccess: (ownerUserId) => api.post('/emergency/requests', { owner_user_id: ownerUserId }),
+  getIncoming: () => api.get('/emergency/requests/incoming'),
+  getOutgoing: () => api.get('/emergency/requests/outgoing'),
+  approve: (id) => api.post(`/emergency/requests/${id}/approve`),
+  deny: (id) => api.post(`/emergency/requests/${id}/deny`),
+  revoke: (id) => api.post(`/emergency/requests/${id}/revoke`),
+  finalizeAuto: (id) => api.post(`/emergency/requests/${id}/finalize-auto`)
 };
 
 export default api;
