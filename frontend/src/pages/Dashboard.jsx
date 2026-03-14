@@ -48,7 +48,17 @@ function Dashboard({ token, setToken, role = 'user' }) {
   const [noteForm, setNoteForm] = useState({ title: '', content: '' });
   const [showCommandPalette, setShowCommandPalette] = useState(false);
   const [commandQuery, setCommandQuery] = useState('');
+  const [theme, setTheme] = useState(() => localStorage.getItem('uiTheme') || 'nord-frost');
   const navigate = useNavigate();
+
+  const themeOptions = [
+    { value: 'nord-frost', label: 'Nord Frost' },
+    { value: 'tokyo-night', label: 'Tokyo Night' },
+    { value: 'catppuccin-mocha', label: 'Catppuccin Mocha' },
+    { value: 'dracula', label: 'Dracula' },
+    { value: 'solarized-dark', label: 'Solarized Dark' },
+    { value: 'graphite-minimal', label: 'Graphite Minimal' }
+  ];
 
   const showNotification = (message, type = 'success') => {
     const id = Date.now();
@@ -81,6 +91,11 @@ function Dashboard({ token, setToken, role = 'user' }) {
     window.addEventListener('keydown', onKeyDown);
     return () => window.removeEventListener('keydown', onKeyDown);
   }, []);
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+    localStorage.setItem('uiTheme', theme);
+  }, [theme]);
 
   const loadTeams = async () => {
     try {
@@ -675,6 +690,9 @@ function Dashboard({ token, setToken, role = 'user' }) {
             <h1>Password Manager</h1>
           </div>
           <div style={{ display: 'flex', gap: '10px' }}>
+            <select value={theme} onChange={(e) => setTheme(e.target.value)} style={{ width: '210px' }}>
+              {themeOptions.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
+            </select>
             <button onClick={handleProfileClick} className="secondary">Profile</button>
             <Link to="/teams">
               <button className="secondary">Teams</button>
