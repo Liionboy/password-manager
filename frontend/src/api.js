@@ -103,4 +103,17 @@ export const settings = {
   testEmail: (data) => api.post('/settings/test-email', data)
 };
 
+export const emergency = {
+  getContacts: () => api.get('/emergency/contacts'),
+  addContact: (contactUserId, delayHours = 168) => api.post('/emergency/contacts', { contact_user_id: contactUserId, delay_hours: delayHours }),
+  removeContact: (contactUserId) => api.delete(`/emergency/contacts/${contactUserId}`),
+  requestAccess: (ownerUserId) => api.post('/emergency/requests', { owner_user_id: ownerUserId }),
+  getIncoming: () => api.get('/emergency/requests/incoming'),
+  getOutgoing: () => api.get('/emergency/requests/outgoing'),
+  approve: (id) => api.post(`/emergency/requests/${id}/approve`),
+  deny: (id) => api.post(`/emergency/requests/${id}/deny`),
+  revoke: (id) => api.post(`/emergency/requests/${id}/revoke`),
+  finalizeAuto: (id) => api.post(`/emergency/requests/${id}/finalize-auto`)
+};
+
 export default api;

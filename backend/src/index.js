@@ -11,6 +11,7 @@ const settingsRoutes = require('./routes/settings');
 const folderRoutes = require('./routes/folders');
 const teamRoutes = require('./routes/teams');
 const notesRoutes = require('./routes/notes');
+const emergencyRoutes = require('./routes/emergency');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -245,6 +246,34 @@ const initDB = async (retries = 10) => {
     `);
 
     await db.query(`
+      CREATE TABLE IF NOT EXISTS emergency_contacts (
+        owner_user_id INTEGER NOT NULL,
+        contact_user_id INTEGER NOT NULL,
+        delay_hours INTEGER NOT NULL DEFAULT 168,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (owner_user_id, contact_user_id),
+        FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (contact_user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+
+    await db.query(`
+      CREATE TABLE IF NOT EXISTS emergency_access_requests (
+        id SERIAL PRIMARY KEY,
+        owner_user_id INTEGER NOT NULL,
+        contact_user_id INTEGER NOT NULL,
+        status VARCHAR(20) NOT NULL DEFAULT 'pending',
+        requested_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        grant_after TIMESTAMP NOT NULL,
+        decision_at TIMESTAMP NULL,
+        expires_at TIMESTAMP NULL,
+        revoked_at TIMESTAMP NULL,
+        FOREIGN KEY (owner_user_id) REFERENCES users(id) ON DELETE CASCADE,
+        FOREIGN KEY (contact_user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+
+    await db.query(`
       CREATE TABLE IF NOT EXISTS audit_logs (
         id SERIAL PRIMARY KEY,
         user_id INTEGER,
@@ -356,6 +385,7 @@ app.use('/api/settings', settingsRoutes);
 app.use('/api/folders', folderRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/notes', notesRoutes);
+app.use('/api/emergency', emergencyRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });

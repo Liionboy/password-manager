@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import * as OTPAuth from 'otpauth';
-import { passwords, categories, cards, notes, folders as foldersApi, teams, auth } from '../api';
+import { passwords, categories, cards, notes, emergency, folders as foldersApi, teams, auth } from '../api';
 
 function Dashboard({ token, setToken, role = 'user' }) {
   const [activeTab, setActiveTab] = useState('passwords');
@@ -24,6 +24,10 @@ function Dashboard({ token, setToken, role = 'user' }) {
   const [mfaCode, setMfaCode] = useState('');
   const [sessionList, setSessionList] = useState([]);
   const [currentSessionJti, setCurrentSessionJti] = useState('');
+  const [emergencyContacts, setEmergencyContacts] = useState([]);
+  const [emergencyIncoming, setEmergencyIncoming] = useState([]);
+  const [emergencyOutgoing, setEmergencyOutgoing] = useState([]);
+  const [emergencyForm, setEmergencyForm] = useState({ contactUserId: '', delayHours: 168, ownerUserId: '' });
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [importData, setImportData] = useState('');
@@ -471,6 +475,15 @@ function Dashboard({ token, setToken, role = 'user' }) {
 
       const sessionsRes = await auth.getSessions();
       setSessionList(sessionsRes.data || []);
+
+      const [contactsRes, incomingRes, outgoingRes] = await Promise.all([
+        emergency.getContacts(),
+        emergency.getIncoming(),
+        emergency.getOutgoing()
+      ]);
+      setEmergencyContacts(contactsRes.data || []);
+      setEmergencyIncoming(incomingRes.data || []);
+      setEmergencyOutgoing(outgoingRes.data || []);
     } catch (err) {
       console.error('Error loading profile:', err);
     }
@@ -496,6 +509,41 @@ function Dashboard({ token, setToken, role = 'user' }) {
       await loadProfile();
     } catch (err) {
       showNotification('Error revoking other sessions: ' + (err.response?.data?.error || err.message), 'error');
+    }
+  };
+
+  const handleAddEmergencyContact = async () => {
+    try {
+      await emergency.addContact(Number(emergencyForm.contactUserId), Number(emergencyForm.delayHours || 168));
+      showNotification('Emergency contact saved!');
+      setEmergencyForm(prev => ({ ...prev, contactUserId: '' }));
+      await loadProfile();
+    } catch (err) {
+      showNotification('Error adding emergency contact: ' + (err.response?.data?.error || err.message), 'error');
+    }
+  };
+
+  const handleRequestEmergencyAccess = async () => {
+    try {
+      await emergency.requestAccess(Number(emergencyForm.ownerUserId));
+      showNotification('Emergency access request submitted!');
+      setEmergencyForm(prev => ({ ...prev, ownerUserId: '' }));
+      await loadProfile();
+    } catch (err) {
+      showNotification('Error requesting emergency access: ' + (err.response?.data?.error || err.message), 'error');
+    }
+  };
+
+  const handleEmergencyAction = async (action, requestId) => {
+    try {
+      if (action === 'approve') await emergency.approve(requestId);
+      if (action === 'deny') await emergency.deny(requestId);
+      if (action === 'revoke') await emergency.revoke(requestId);
+      if (action === 'finalize') await emergency.finalizeAuto(requestId);
+      showNotification(`Emergency request ${action}d successfully!`);
+      await loadProfile();
+    } catch (err) {
+      showNotification('Error on emergency action: ' + (err.response?.data?.error || err.message), 'error');
     }
   };
 
@@ -1166,6 +1214,77 @@ function Dashboard({ token, setToken, role = 'user' }) {
                   })}
                 </div>
               )}
+            </div>
+
+            <div style={{ marginTop: '20px', padding: '15px', background: '#1a1a2e', borderRadius: '8px' }}>
+              <h3 style={{ marginTop: 0 }}>Emergency Access</h3>
+
+              <div className="form-group">
+                <label>Add trusted contact (User ID)</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="number"
+                    value={emergencyForm.contactUserId}
+                    onChange={(e) => setEmergencyForm({ ...emergencyForm, contactUserId: e.target.value })}
+                    placeholder="Contact user id"
+                  />
+                  <input
+                    type="number"
+                    value={emergencyForm.delayHours}
+                    onChange={(e) => setEmergencyForm({ ...emergencyForm, delayHours: e.target.value })}
+                    placeholder="Delay hours"
+                    style={{ maxWidth: '140px' }}
+                  />
+                  <button onClick={handleAddEmergencyContact} className="success">Save</button>
+                </div>
+              </div>
+
+              <div style={{ color: '#94a3b8', fontSize: '13px', marginBottom: '8px' }}>Configured contacts:</div>
+              {emergencyContacts.length === 0 ? (
+                <p style={{ color: '#64748b' }}>No emergency contacts configured.</p>
+              ) : (
+                emergencyContacts.map(c => (
+                  <div key={`${c.owner_user_id}-${c.contact_user_id}`} style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                    <span>{c.contact_username} (id: {c.contact_user_id}) • delay: {c.delay_hours}h</span>
+                    <button className="danger" onClick={async () => { await emergency.removeContact(c.contact_user_id); await loadProfile(); }}>Remove</button>
+                  </div>
+                ))
+              )}
+
+              <hr style={{ borderColor: '#334155', margin: '14px 0' }} />
+
+              <div className="form-group">
+                <label>Request access to owner (User ID)</label>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <input
+                    type="number"
+                    value={emergencyForm.ownerUserId}
+                    onChange={(e) => setEmergencyForm({ ...emergencyForm, ownerUserId: e.target.value })}
+                    placeholder="Owner user id"
+                  />
+                  <button onClick={handleRequestEmergencyAccess} className="secondary">Request</button>
+                </div>
+              </div>
+
+              <div style={{ color: '#94a3b8', fontSize: '13px', marginTop: '8px' }}>Incoming requests:</div>
+              {(emergencyIncoming || []).map(r => (
+                <div key={`in-${r.id}`} style={{ border: '1px solid #334155', borderRadius: '8px', padding: '8px', marginTop: '6px' }}>
+                  <div style={{ fontSize: '13px' }}>From: {r.contact_username} • status: {r.status}</div>
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                    {r.status === 'pending' && <button className="success" onClick={() => handleEmergencyAction('approve', r.id)}>Approve</button>}
+                    {r.status === 'pending' && <button className="secondary" onClick={() => handleEmergencyAction('deny', r.id)}>Deny</button>}
+                    {(r.status === 'approved' || r.status === 'auto_granted') && <button className="danger" onClick={() => handleEmergencyAction('revoke', r.id)}>Revoke</button>}
+                    {r.status === 'pending' && <button className="secondary" onClick={() => handleEmergencyAction('finalize', r.id)}>Finalize if ready</button>}
+                  </div>
+                </div>
+              ))}
+
+              <div style={{ color: '#94a3b8', fontSize: '13px', marginTop: '10px' }}>Your outgoing requests:</div>
+              {(emergencyOutgoing || []).map(r => (
+                <div key={`out-${r.id}`} style={{ fontSize: '12px', color: '#94a3b8', marginTop: '4px' }}>
+                  To owner {r.owner_username} • status: {r.status} • grant after: {r.grant_after ? new Date(r.grant_after).toLocaleString() : '-'}
+                </div>
+              ))}
             </div>
 
             <div className="form-actions">
