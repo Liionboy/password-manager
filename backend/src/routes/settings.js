@@ -136,8 +136,7 @@ router.post('/test-email', async (req, res) => {
       port: parseInt(smtp_port),
       secure: parseInt(smtp_port) === 465,
       tls: {
-        rejectUnauthorized: false,
-        secure: parseInt(smtp_port) === 587
+        minVersion: 'TLSv1.2'
       },
       connectionTimeout: 15000,
       auth: {
@@ -233,8 +232,7 @@ const sendNotification = async (db, userId, subject, body, actionType) => {
       port: settings.smtp_port,
       secure: settings.smtp_port === 465,
       tls: {
-        rejectUnauthorized: false,
-        secure: settings.smtp_port === 587
+        minVersion: 'TLSv1.2'
       },
       connectionTimeout: 15000,
       auth: {
