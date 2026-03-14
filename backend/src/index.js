@@ -12,7 +12,6 @@ const folderRoutes = require('./routes/folders');
 const teamRoutes = require('./routes/teams');
 const notesRoutes = require('./routes/notes');
 const emergencyRoutes = require('./routes/emergency');
-const breachRoutes = require('./routes/breach');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -275,34 +274,6 @@ const initDB = async (retries = 10) => {
     `);
 
     await db.query(`
-      CREATE TABLE IF NOT EXISTS breach_monitored_emails (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL,
-        email VARCHAR(255) NOT NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
-        UNIQUE (user_id, email)
-      )
-    `);
-
-    await db.query(`
-      CREATE TABLE IF NOT EXISTS breach_alerts (
-        id SERIAL PRIMARY KEY,
-        user_id INTEGER NOT NULL,
-        email VARCHAR(255) NOT NULL,
-        source VARCHAR(100) NOT NULL,
-        breach_name VARCHAR(255) NOT NULL,
-        breach_date DATE NULL,
-        severity VARCHAR(10) NOT NULL,
-        status VARCHAR(20) NOT NULL DEFAULT 'new',
-        details JSONB NULL,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
-      )
-    `);
-
-    await db.query(`
       CREATE TABLE IF NOT EXISTS audit_logs (
         id SERIAL PRIMARY KEY,
         user_id INTEGER,
@@ -415,7 +386,6 @@ app.use('/api/folders', folderRoutes);
 app.use('/api/teams', teamRoutes);
 app.use('/api/notes', notesRoutes);
 app.use('/api/emergency', emergencyRoutes);
-app.use('/api/breach', breachRoutes);
 
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok' });
