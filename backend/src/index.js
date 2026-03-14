@@ -40,6 +40,7 @@ const apiLimiter = rateLimit({
   max: 600,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => req.path.startsWith('/auth/'),
   message: { error: 'Ai trimis foarte multe cereri într-un timp scurt. Încearcă din nou în 1-2 minute.' }
 });
 
