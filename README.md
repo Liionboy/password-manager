@@ -217,10 +217,21 @@ The following environment variables can be configured in `docker-compose.yml`:
 
 > **Security Note:** Change the default `JWT_SECRET` and `ENCRYPTION_KEY` values in production!
 
+### Optional Argon2 tuning (backend)
+
+You can tune Argon2id cost via environment variables:
+
+- `ARGON2_MEMORY_COST` (default `19456`)
+- `ARGON2_TIME_COST` (default `2`)
+- `ARGON2_PARALLELISM` (default `1`)
+
+Legacy bcrypt hashes are still accepted and will be transparently upgraded to Argon2id after successful login.
+
 ## 🔒 Security Considerations
 
 - All passwords and card numbers are encrypted using AES-256 before storage
 - JWT tokens expire after 15 minutes (MFA temp tokens after 5 minutes)
+- Password hashing uses Argon2id for new/updated passwords; existing bcrypt hashes remain compatible
 - Passwords and card data are never stored in plain text
 - PostgreSQL database is stored in a Docker volume for persistence
 - Password strength validation (minimum 8 chars + 3 character types)
@@ -245,6 +256,11 @@ The following environment variables can be configured in `docker-compose.yml`:
 | POST | `/api/auth/mfa/enable` | Enable MFA with verification code |
 | POST | `/api/auth/mfa/disable` | Disable MFA with verification code |
 | POST | `/api/auth/mfa/verify-temp` | Verify MFA code after login |
+| POST | `/api/auth/refresh` | Rotate refresh token and get new access token |
+| POST | `/api/auth/logout` | Logout current client |
+| POST | `/api/auth/logout-all` | Revoke all user sessions |
+| GET | `/api/auth/sessions` | List refresh sessions for current user |
+| POST | `/api/auth/sessions/:id/revoke` | Revoke one refresh session |
 
 ### Passwords
 | Method | Endpoint | Description |
@@ -319,6 +335,52 @@ docker compose logs -f
 docker compose build backend
 docker compose build frontend
 ```
+
+## 💾 Encrypted Backup & Restore (Milestone 7)
+
+Backup/restore is implemented for the PostgreSQL Docker volume (`password-manager_pgdata`) with OpenSSL encryption.
+
+### Scripts
+
+- `scripts/backup-encrypted.sh` — creates encrypted backup (`.enc`) + checksum (`.sha256`)
+- `scripts/restore-encrypted.sh <file.enc>` — restores from encrypted backup
+- `scripts/test-restore.sh` — smoke test: backup → restore → `/api/health` check
+
+### 1) Create encrypted backup
+
+```bash
+cd /home/adrian/.openclaw/workspace/password-manager
+BACKUP_PASSPHRASE='set-a-strong-passphrase' ./scripts/backup-encrypted.sh
+```
+
+Output is stored in `./backups/` (ignored by git).
+
+### 2) Restore encrypted backup
+
+```bash
+cd /home/adrian/.openclaw/workspace/password-manager
+BACKUP_PASSPHRASE='set-a-strong-passphrase' ./scripts/restore-encrypted.sh ./backups/<backup-file>.enc
+```
+
+### 3) Test restore end-to-end
+
+```bash
+cd /home/adrian/.openclaw/workspace/password-manager
+BACKUP_PASSPHRASE='set-a-strong-passphrase' ./scripts/test-restore.sh
+```
+
+If successful, script prints: `Restore test passed (health=200).`
+
+## ✅ E2E Security Regression (Milestone 8)
+
+- CI workflow: `.github/workflows/e2e-regression.yml`
+- Matrix: `docs/SECURITY_REGRESSION_MATRIX.md`
+
+The E2E workflow validates:
+- stack health (`/api/health`)
+- security headers presence (CSP, X-Frame-Options, X-Content-Type-Options)
+- auth rate limiting (expects HTTP `429` on repeated failed login)
+- encrypted backup script smoke run
 
 ## 📄 License
 

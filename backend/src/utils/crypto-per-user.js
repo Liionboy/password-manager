@@ -68,7 +68,7 @@ function decrypt(encrypted, key) {
   const authTag = Buffer.from(encrypted.authTag, 'base64');
   const ciphertext = Buffer.from(encrypted.ciphertext, 'base64');
   
-  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv);
+  const decipher = crypto.createDecipheriv('aes-256-gcm', key, iv, { authTagLength: 16 });
   decipher.setAuthTag(authTag);
   
   let plaintext = decipher.update(ciphertext);

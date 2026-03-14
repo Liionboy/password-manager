@@ -1,8 +1,8 @@
 const express = require('express');
-const bcrypt = require('bcryptjs');
-const { authenticateToken, generateTokens, generateTempToken, refreshAccessToken } = require('../middleware/auth');
+const { authenticateToken, generateTokens, generateTempToken, refreshAccessToken, revokeAllRefreshSessions } = require('../middleware/auth');
 const { AuditActions } = require('../middleware/audit');
 const { generateSalt } = require('../utils/crypto-per-user');
+const { hashPassword, verifyPassword, maybeUpgradePasswordHash } = require('../utils/password-hash');
 
 const router = express.Router();
 
@@ -55,7 +55,7 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Username already exists' });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await hashPassword(password);
     
     // Generate unique salt for per-user encryption key derivation
     const encryptionSalt = generateSalt();
@@ -71,7 +71,10 @@ router.post('/register', async (req, res) => {
       [username, passwordHash, role, encryptionSalt.toString('base64')]
     );
 
-    const tokens = generateTokens({ id: result.rows[0].id, username, role });
+    const tokens = await generateTokens({ id: result.rows[0].id, username, role }, db, {
+      ip: req.ip,
+      userAgent: req.get('user-agent')
+    });
     
     // Log audit
     await req.audit(AuditActions.USER_CREATED, { 
@@ -115,7 +118,7 @@ router.post('/login', async (req, res) => {
       return res.status(423).json({ error: `Account locked. Try again in ${remainingMinutes} minutes` });
     }
 
-    const validPassword = await bcrypt.compare(password, user.password_hash);
+    const { valid: validPassword, needsUpgrade } = await verifyPassword(password, user.password_hash);
 
     if (!validPassword) {
       const attempts = (user.failed_login_attempts || 0) + 1;
@@ -140,6 +143,7 @@ router.post('/login', async (req, res) => {
     }
 
     await db.query('UPDATE users SET failed_login_attempts = 0, locked_until = NULL WHERE id = $1', [user.id]);
+    await maybeUpgradePasswordHash(db, user.id, password, needsUpgrade);
     
     await req.audit(AuditActions.LOGIN_SUCCESS, { 
       resource: `user:${user.id}`,
@@ -154,7 +158,10 @@ router.post('/login', async (req, res) => {
       });
     }
 
-    const tokens = generateTokens(user);
+    const tokens = await generateTokens(user, db, {
+      ip: req.ip,
+      userAgent: req.get('user-agent')
+    });
 
     res.json({ 
       message: 'Login successful', 
@@ -203,7 +210,10 @@ router.post('/mfa/verify-temp', async (req, res) => {
       return res.status(401).json({ error: 'Invalid MFA code' });
     }
 
-    const tokens = generateTokens(user);
+    const tokens = await generateTokens(user, db, {
+      ip: req.ip,
+      userAgent: req.get('user-agent')
+    });
     res.json({ 
       message: 'Login successful', 
       ...tokens,
@@ -260,7 +270,7 @@ router.post('/users', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Username already exists' });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    const passwordHash = await hashPassword(password);
     const result = await db.query('INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3) RETURNING id, username, role', [username, passwordHash, role]);
 
     res.status(201).json({ id: result.rows[0].id, username: result.rows[0].username, role: result.rows[0].role });
@@ -311,7 +321,7 @@ router.post('/users/:id/reset-password', authenticateToken, async (req, res) => 
     }
 
     const db = req.db;
-    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const passwordHash = await hashPassword(newPassword);
     const result = await db.query('UPDATE users SET password_hash = $1 WHERE id = $2 RETURNING id, username', [passwordHash, id]);
 
     if (result.rows.length === 0) {
@@ -385,8 +395,7 @@ router.put('/profile', authenticateToken, async (req, res) => {
     }
 
     if (password) {
-      const bcrypt = require('bcryptjs');
-      const hashedPassword = bcrypt.hashSync(password, 10);
+      const hashedPassword = await hashPassword(password);
       await db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hashedPassword, userId]);
     }
 
@@ -517,7 +526,10 @@ router.post('/refresh', async (req, res) => {
       return res.status(400).json({ error: 'Refresh token is required' });
     }
 
-    const tokens = await refreshAccessToken(refreshToken);
+    const tokens = await refreshAccessToken(refreshToken, req.db, {
+      ip: req.ip,
+      userAgent: req.get('user-agent')
+    });
     
     // Decode token to get user info for audit
     const jwt = require('jsonwebtoken');
@@ -545,6 +557,70 @@ router.post('/logout', authenticateToken, async (req, res) => {
   // In a production setup, you could add the refresh token to a blacklist
   // For now, the client just needs to discard both tokens
   res.json({ message: 'Logged out successfully' });
+});
+
+router.post('/logout-all', authenticateToken, async (req, res) => {
+  try {
+    await revokeAllRefreshSessions(req.user.id, req.db);
+    await req.audit(AuditActions.LOGOUT, {
+      resource: `user:${req.user.id}`,
+      username: req.user.username,
+      scope: 'all_sessions'
+    });
+    res.json({ message: 'Logged out from all sessions successfully' });
+  } catch (error) {
+    console.error('Logout all error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.get('/sessions', authenticateToken, async (req, res) => {
+  try {
+    const sessions = await req.db.query(
+      `SELECT id, token_jti, created_at, last_used_at, expires_at, revoked_at, ip_address, user_agent
+       FROM refresh_sessions
+       WHERE user_id = $1
+       ORDER BY created_at DESC`,
+      [req.user.id]
+    );
+
+    await req.audit(AuditActions.SESSIONS_LIST_VIEWED, {
+      resource: `user:${req.user.id}`,
+      username: req.user.username
+    });
+
+    res.json(sessions.rows);
+  } catch (error) {
+    console.error('List sessions error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/sessions/:id/revoke', authenticateToken, async (req, res) => {
+  try {
+    const { id } = req.params;
+    const result = await req.db.query(
+      `UPDATE refresh_sessions
+       SET revoked_at = NOW()
+       WHERE id = $1 AND user_id = $2 AND revoked_at IS NULL
+       RETURNING id`,
+      [id, req.user.id]
+    );
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Session not found or already revoked' });
+    }
+
+    await req.audit(AuditActions.SESSION_REVOKED, {
+      resource: `refresh_session:${id}`,
+      username: req.user.username
+    });
+
+    res.json({ message: 'Session revoked successfully' });
+  } catch (error) {
+    console.error('Revoke session error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
 });
 
 router.post('/forgot-password', async (req, res) => {
@@ -597,7 +673,7 @@ router.post('/reset-password', async (req, res) => {
       return res.status(400).json({ error: 'Invalid or expired reset token' });
     }
 
-    const passwordHash = await bcrypt.hash(newPassword, 10);
+    const passwordHash = await hashPassword(newPassword);
     await db.query('UPDATE users SET password_hash = $1, reset_token = NULL, reset_expires = NULL WHERE id = $2', [passwordHash, user.id]);
 
     res.json({ message: 'Password reset successfully' });

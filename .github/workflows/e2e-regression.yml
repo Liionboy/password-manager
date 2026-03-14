@@ -1,0 +1,95 @@
+name: E2E Security Regression
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - master
+      - dev/**
+      - feature/**
+      - hotfix/**
+
+permissions:
+  contents: read
+
+jobs:
+  e2e-security-regression:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare test environment
+        run: |
+          cat > .env <<'EOF'
+          JWT_SECRET=test-jwt-secret-please-change
+          JWT_EXPIRY=15m
+          REFRESH_SECRET=test-refresh-secret-please-change
+          REFRESH_EXPIRY=7d
+          ENCRYPTION_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+          DB_HOST=postgres
+          DB_USER=postgres
+          DB_PASSWORD=postgres
+          DB_NAME=passwordmanager
+          NODE_ENV=production
+          PORT=5000
+          BASE_URL=http://localhost:1532
+          BCRYPT_ROUNDS=10
+          MAX_LOGIN_ATTEMPTS=5
+          LOCKOUT_DURATION_MINUTES=15
+          EOF
+
+      - name: Build and start stack
+        run: docker compose up -d --build
+
+      - name: Wait for health
+        run: |
+          for i in {1..60}; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:1532/api/health || true)
+            if [ "$code" = "200" ]; then
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "Health endpoint did not become ready in time"
+          docker compose logs --tail=200
+          exit 1
+
+      - name: Check security headers
+        run: |
+          headers=$(curl -sI http://localhost:1532)
+          echo "$headers"
+          echo "$headers" | grep -qi "content-security-policy:" || (echo "Missing CSP header" && exit 1)
+          echo "$headers" | grep -qi "x-frame-options:" || (echo "Missing X-Frame-Options header" && exit 1)
+          echo "$headers" | grep -qi "x-content-type-options:" || (echo "Missing X-Content-Type-Options header" && exit 1)
+
+      - name: Check auth rate limiting
+        run: |
+          too_many=0
+          for i in {1..12}; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" \
+              -X POST http://localhost:1532/api/auth/login \
+              -H "Content-Type: application/json" \
+              -d '{"username":"nope","password":"nope"}')
+            echo "Attempt $i => $code"
+            if [ "$code" = "429" ]; then
+              too_many=1
+              break
+            fi
+          done
+          if [ "$too_many" -ne 1 ]; then
+            echo "Rate limiting did not trigger (429 not observed)"
+            exit 1
+          fi
+
+      - name: Check backup script basic run
+        run: |
+          BACKUP_PASSPHRASE='ci-test-passphrase' ./scripts/backup-encrypted.sh
+          ls -la backups
+
+      - name: Cleanup
+        if: always()
+        run: docker compose down -v

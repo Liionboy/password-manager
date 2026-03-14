@@ -17,6 +17,30 @@ const PORT = process.env.PORT || 5000;
 app.set('trust proxy', 1);
 app.use(helmet());
 
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many authentication attempts. Please try again later.' }
+});
+
+const sensitiveAuthLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many attempts. Please try again later.' }
+});
+
+const apiLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 300,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests. Please slow down.' }
+});
+
 const db = new Database({
   host: process.env.DB_HOST || 'localhost',
   user: process.env.DB_USER || 'postgres',
@@ -199,6 +223,33 @@ const initDB = async (retries = 10) => {
     `);
 
     await db.query(`
+      CREATE TABLE IF NOT EXISTS refresh_sessions (
+        id SERIAL PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        token_jti VARCHAR(128) UNIQUE NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        last_used_at TIMESTAMP,
+        expires_at TIMESTAMP NOT NULL,
+        revoked_at TIMESTAMP,
+        ip_address VARCHAR(50),
+        user_agent TEXT,
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+      )
+    `);
+
+    await db.query(`ALTER TABLE refresh_sessions ADD COLUMN IF NOT EXISTS last_used_at TIMESTAMP`).catch(() => {});
+    await db.query(`ALTER TABLE refresh_sessions ADD COLUMN IF NOT EXISTS ip_address VARCHAR(50)`).catch(() => {});
+    await db.query(`ALTER TABLE refresh_sessions ADD COLUMN IF NOT EXISTS user_agent TEXT`).catch(() => {});
+
+    await db.query(`
+      CREATE INDEX IF NOT EXISTS idx_refresh_sessions_user_id ON refresh_sessions(user_id);
+    `);
+
+    await db.query(`
+      CREATE INDEX IF NOT EXISTS idx_refresh_sessions_token_jti ON refresh_sessions(token_jti);
+    `);
+
+    await db.query(`
       CREATE INDEX IF NOT EXISTS idx_audit_logs_user_id ON audit_logs(user_id);
     `);
     
@@ -248,6 +299,16 @@ app.use((req, res, next) => {
   req.db = db;
   next();
 });
+
+app.use('/api', apiLimiter);
+
+// Auth route tuning
+app.use('/api/auth/login', authLimiter);
+app.use('/api/auth/register', authLimiter);
+app.use('/api/auth/refresh', authLimiter);
+app.use('/api/auth/forgot-password', sensitiveAuthLimiter);
+app.use('/api/auth/reset-password', sensitiveAuthLimiter);
+app.use('/api/auth/mfa/verify-temp', sensitiveAuthLimiter);
 
 // Attach audit logger to all requests
 app.use(createAuditLogger(db));

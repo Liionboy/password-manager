@@ -1,0 +1,12 @@
+title = "password-manager gitleaks config"
+
+[allowlist]
+description = "Allow CI dummy placeholders in workflow environment templates"
+paths = [
+  '''.github/workflows/e2e-regression.yml'''
+]
+regexes = [
+  '''JWT_SECRET=.*''',
+  '''REFRESH_SECRET=.*''',
+  '''ENCRYPTION_KEY=.*'''
+]
