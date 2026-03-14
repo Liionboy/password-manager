@@ -28,6 +28,9 @@ function Dashboard({ token, setToken, role = 'user' }) {
   const [newFolder, setNewFolder] = useState({ name: '', parent_id: '', team_id: '' });
   const [editFolder, setEditFolder] = useState({ id: '', name: '', parent_id: '', team_id: '' });
   const [notifications, setNotifications] = useState([]);
+  const [passwordHealth, setPasswordHealth] = useState(null);
+  const [healthLoading, setHealthLoading] = useState(false);
+  const [healthFilter, setHealthFilter] = useState('');
   const navigate = useNavigate();
 
   const showNotification = (message, type = 'success') => {
@@ -66,6 +69,24 @@ function Dashboard({ token, setToken, role = 'user' }) {
       console.error('Error loading passwords:', err);
     }
   };
+
+  const loadPasswordHealth = async () => {
+    try {
+      setHealthLoading(true);
+      const response = await passwords.getHealth();
+      setPasswordHealth(response.data);
+    } catch (err) {
+      console.error('Error loading password health:', err);
+    } finally {
+      setHealthLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'passwords') {
+      loadPasswordHealth();
+    }
+  }, [activeTab, passwordList.length]);
 
   const loadCards = async () => {
     try {
@@ -375,6 +396,14 @@ function Dashboard({ token, setToken, role = 'user' }) {
     return '**** **** **** ' + number.slice(-4);
   };
 
+  const activeHealthIds = healthFilter && passwordHealth?.byCategory?.[healthFilter]
+    ? new Set(passwordHealth.byCategory[healthFilter].map(item => item.id))
+    : null;
+
+  const displayedPasswords = activeHealthIds
+    ? passwordList.filter(p => activeHealthIds.has(p.id))
+    : passwordList;
+
   return (
     <div>
       <div style={{ position: 'fixed', top: '20px', right: '20px', zIndex: 9999 }}>
@@ -515,13 +544,53 @@ function Dashboard({ token, setToken, role = 'user' }) {
           </div>
 
           {activeTab === 'passwords' && (
-            passwordList.length === 0 ? (
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(4, minmax(120px, 1fr))',
+              gap: '10px',
+              marginBottom: '16px'
+            }}>
+              <div style={{ background: 'rgba(0, 240, 255, 0.08)', border: '1px solid rgba(0, 240, 255, 0.25)', borderRadius: '10px', padding: '12px' }}>
+                <div style={{ fontSize: '12px', color: '#94a3b8' }}>Health Score</div>
+                <div style={{ fontSize: '24px', fontWeight: 700, color: '#00f0ff' }}>
+                  {healthLoading ? '...' : (passwordHealth?.summary?.score ?? 0)}
+                </div>
+              </div>
+
+              {[
+                { key: 'weak', label: 'Weak', color: '#f59e0b' },
+                { key: 'reused', label: 'Reused', color: '#ef4444' },
+                { key: 'old', label: 'Old (>180d)', color: '#f97316' }
+              ].map(metric => (
+                <button
+                  key={metric.key}
+                  onClick={() => setHealthFilter(prev => prev === metric.key ? '' : metric.key)}
+                  style={{
+                    textAlign: 'left',
+                    background: healthFilter === metric.key ? 'rgba(255,255,255,0.08)' : 'rgba(15, 23, 42, 0.6)',
+                    border: `1px solid ${metric.color}55`,
+                    borderRadius: '10px',
+                    padding: '12px',
+                    cursor: 'pointer'
+                  }}
+                >
+                  <div style={{ fontSize: '12px', color: '#94a3b8' }}>{metric.label}</div>
+                  <div style={{ fontSize: '24px', fontWeight: 700, color: metric.color }}>
+                    {healthLoading ? '...' : (passwordHealth?.summary?.[metric.key] ?? 0)}
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
+
+          {activeTab === 'passwords' && (
+            displayedPasswords.length === 0 ? (
               <div className="empty-state">
-                <p>No passwords found. Add your first password!</p>
+                <p>{healthFilter ? 'No passwords match this health filter.' : 'No passwords found. Add your first password!'}</p>
               </div>
             ) : (
               <div className="password-list">
-                {passwordList.map(pwd => (
+                {displayedPasswords.map(pwd => (
                   <div key={pwd.id} className="password-card">
                     <div className="password-info">
                       <h3>

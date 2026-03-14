@@ -11,6 +11,113 @@ router.use(authenticateToken);
 // Optional: uncomment to enable per-user encryption
 // router.use(requireEncryptionKey);
 
+router.get('/health', async (req, res) => {
+  try {
+    const db = req.db;
+    const userId = req.user.id;
+
+    const entries = await db.prepare(`
+      SELECT p.id, p.title, p.username, p.encrypted_password, p.updated_at, p.created_at
+      FROM passwords p
+      LEFT JOIN users u ON p.user_id = u.id
+      WHERE (p.user_id = $1
+          OR p.id IN (SELECT password_id FROM shared_passwords WHERE user_id = $1)
+          OR p.team_id IN (SELECT team_id FROM team_members WHERE user_id = $1)
+          OR u.id IN (SELECT user_id FROM team_members WHERE team_id IN (SELECT team_id FROM team_members WHERE user_id = $1)))
+      ORDER BY p.updated_at DESC
+    `).all(userId);
+
+    const now = Date.now();
+    const oldThresholdMs = 180 * 24 * 60 * 60 * 1000; // 180 days
+
+    const weak = [];
+    const old = [];
+    const decryptedEntries = [];
+    const passwordUsage = new Map();
+
+    const getStrengthClasses = (pwd = '') => {
+      const classes = [
+        /[A-Z]/.test(pwd),
+        /[a-z]/.test(pwd),
+        /[0-9]/.test(pwd),
+        /[^A-Za-z0-9]/.test(pwd)
+      ].filter(Boolean).length;
+      return classes;
+    };
+
+    for (const item of entries) {
+      let decryptedPassword = null;
+      try {
+        decryptedPassword = req.encryptionKey
+          ? decrypt(item.encrypted_password, req.encryptionKey)
+          : decrypt(item.encrypted_password);
+      } catch (e) {
+        decryptedPassword = null;
+      }
+
+      const updatedAt = item.updated_at ? new Date(item.updated_at).getTime() : 0;
+      const createdAt = item.created_at ? new Date(item.created_at).getTime() : 0;
+      const lastChange = updatedAt || createdAt;
+
+      if (decryptedPassword) {
+        const strengthClasses = getStrengthClasses(decryptedPassword);
+        if (decryptedPassword.length < 12 || strengthClasses < 3) {
+          weak.push({ id: item.id, title: item.title, username: item.username, reason: 'weak' });
+        }
+
+        const existing = passwordUsage.get(decryptedPassword) || [];
+        existing.push(item.id);
+        passwordUsage.set(decryptedPassword, existing);
+      }
+
+      if (!lastChange || now - lastChange > oldThresholdMs) {
+        old.push({ id: item.id, title: item.title, username: item.username, reason: 'old' });
+      }
+
+      decryptedEntries.push({ id: item.id, title: item.title, username: item.username, decryptedPassword });
+    }
+
+    const reusedIdSet = new Set();
+    for (const ids of passwordUsage.values()) {
+      if (ids.length > 1) {
+        ids.forEach(id => reusedIdSet.add(id));
+      }
+    }
+
+    const reused = decryptedEntries
+      .filter(e => reusedIdSet.has(e.id))
+      .map(e => ({ id: e.id, title: e.title, username: e.username, reason: 'reused' }));
+
+    const weakIds = new Set(weak.map(i => i.id));
+    const reusedIds = new Set(reused.map(i => i.id));
+    const oldIds = new Set(old.map(i => i.id));
+
+    const uniqueRiskyIds = new Set([...weakIds, ...reusedIds, ...oldIds]);
+    const total = entries.length;
+    const score = total === 0
+      ? 100
+      : Math.max(0, Math.round(100 - (uniqueRiskyIds.size / total) * 100));
+
+    res.json({
+      summary: {
+        total,
+        weak: weakIds.size,
+        reused: reusedIds.size,
+        old: oldIds.size,
+        score
+      },
+      byCategory: {
+        weak,
+        reused,
+        old
+      }
+    });
+  } catch (error) {
+    console.error('Get password health error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 router.get('/', async (req, res) => {
   try {
     res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
