@@ -38,6 +38,9 @@ function Dashboard({ token, setToken, role = 'user' }) {
   const [historyList, setHistoryList] = useState([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [selectedPasswordForHistory, setSelectedPasswordForHistory] = useState(null);
+  const [showNoteModal, setShowNoteModal] = useState(false);
+  const [editingNote, setEditingNote] = useState(null);
+  const [noteForm, setNoteForm] = useState({ title: '', content: '' });
   const navigate = useNavigate();
 
   const showNotification = (message, type = 'success') => {
@@ -260,31 +263,39 @@ function Dashboard({ token, setToken, role = 'user' }) {
     }
   };
 
-  const handleAddNote = async () => {
-    const title = window.prompt('Note title:');
-    if (!title) return;
-    const content = window.prompt('Note content:');
-    if (!content) return;
-    try {
-      await notes.create({ title, content });
-      showNotification('Note created successfully!');
-      loadNotes();
-    } catch (err) {
-      showNotification('Error creating note: ' + (err.response?.data?.error || err.message), 'error');
-    }
+  const openCreateNoteModal = () => {
+    setEditingNote(null);
+    setNoteForm({ title: '', content: '' });
+    setShowNoteModal(true);
   };
 
-  const handleEditNote = async (note) => {
-    const title = window.prompt('Edit note title:', note.title);
-    if (!title) return;
-    const content = window.prompt('Edit note content:', note.content || '');
-    if (!content) return;
+  const openEditNoteModal = (note) => {
+    setEditingNote(note);
+    setNoteForm({ title: note.title || '', content: note.content || '' });
+    setShowNoteModal(true);
+  };
+
+  const handleSaveNote = async () => {
     try {
-      await notes.update(note.id, { title, content });
-      showNotification('Note updated successfully!');
+      if (!noteForm.title.trim() || !noteForm.content.trim()) {
+        showNotification('Title and content are required', 'error');
+        return;
+      }
+
+      if (editingNote) {
+        await notes.update(editingNote.id, { title: noteForm.title, content: noteForm.content });
+        showNotification('Note updated successfully!');
+      } else {
+        await notes.create({ title: noteForm.title, content: noteForm.content });
+        showNotification('Note created successfully!');
+      }
+
+      setShowNoteModal(false);
+      setEditingNote(null);
+      setNoteForm({ title: '', content: '' });
       loadNotes();
     } catch (err) {
-      showNotification('Error updating note: ' + (err.response?.data?.error || err.message), 'error');
+      showNotification('Error saving note: ' + (err.response?.data?.error || err.message), 'error');
     }
   };
 
@@ -642,7 +653,7 @@ function Dashboard({ token, setToken, role = 'user' }) {
                   <button className="success">+ Add Card</button>
                 </Link>
               ) : (
-                <button className="success" onClick={handleAddNote}>+ Add Note</button>
+                <button className="success" onClick={openCreateNoteModal}>+ Add Note</button>
               )}
               {activeTab === 'passwords' && (
                 <>
@@ -819,7 +830,7 @@ function Dashboard({ token, setToken, role = 'user' }) {
                     </div>
                     <div className="password-actions">
                       <button onClick={() => handleCopy(note.content)} className="secondary">Copy</button>
-                      <button onClick={() => handleEditNote(note)} className="secondary">Edit</button>
+                      <button onClick={() => openEditNoteModal(note)} className="secondary">Edit</button>
                       <button onClick={() => handleDeleteNote(note.id)} className="danger">Delete</button>
                     </div>
                   </div>
@@ -1152,6 +1163,40 @@ function Dashboard({ token, setToken, role = 'user' }) {
 
             <div className="form-actions" style={{ marginTop: '16px' }}>
               <button onClick={() => setShowHistoryModal(false)} className="secondary">Close</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showNoteModal && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.8)', display: 'flex', alignItems: 'center', justifyContent: 'center',
+          backdropFilter: 'blur(4px)', zIndex: 3000
+        }}>
+          <div className="form-container" style={{ maxWidth: '600px', width: '95%' }}>
+            <h2>{editingNote ? 'Edit Note' : 'Add Secure Note'}</h2>
+            <div className="form-group">
+              <label>Title</label>
+              <input
+                type="text"
+                value={noteForm.title}
+                onChange={(e) => setNoteForm({ ...noteForm, title: e.target.value })}
+                placeholder="e.g., Recovery Codes"
+              />
+            </div>
+            <div className="form-group">
+              <label>Content</label>
+              <textarea
+                value={noteForm.content}
+                onChange={(e) => setNoteForm({ ...noteForm, content: e.target.value })}
+                placeholder="Write your secure note here..."
+                style={{ minHeight: '160px' }}
+              />
+            </div>
+            <div className="form-actions">
+              <button onClick={handleSaveNote} className="success">{editingNote ? 'Save Changes' : 'Create Note'}</button>
+              <button onClick={() => setShowNoteModal(false)} className="secondary">Cancel</button>
             </div>
           </div>
         </div>
