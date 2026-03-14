@@ -1,5 +1,5 @@
 const express = require('express');
-const { authenticateToken, generateTokens, generateTempToken, refreshAccessToken, revokeAllRefreshSessions } = require('../middleware/auth');
+const { authenticateToken, generateTokens, generateTempToken, refreshAccessToken, revokeAllRefreshSessions, REFRESH_SECRET } = require('../middleware/auth');
 const { AuditActions } = require('../middleware/audit');
 const { generateSalt } = require('../utils/crypto-per-user');
 const { hashPassword, verifyPassword, maybeUpgradePasswordHash } = require('../utils/password-hash');
@@ -620,6 +620,41 @@ router.post('/sessions/:id/revoke', authenticateToken, async (req, res) => {
   } catch (error) {
     console.error('Revoke session error:', error);
     res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+router.post('/sessions/revoke-others', authenticateToken, async (req, res) => {
+  try {
+    const { refreshToken } = req.body || {};
+    if (!refreshToken) {
+      return res.status(400).json({ error: 'Refresh token is required' });
+    }
+
+    const jwt = require('jsonwebtoken');
+    const decoded = jwt.verify(refreshToken, REFRESH_SECRET);
+    const currentJti = decoded?.jti;
+
+    if (!currentJti) {
+      return res.status(400).json({ error: 'Invalid refresh token' });
+    }
+
+    await req.db.query(
+      `UPDATE refresh_sessions
+       SET revoked_at = NOW()
+       WHERE user_id = $1 AND token_jti <> $2 AND revoked_at IS NULL`,
+      [req.user.id, currentJti]
+    );
+
+    await req.audit(AuditActions.SESSION_REVOKED, {
+      resource: `user:${req.user.id}`,
+      username: req.user.username,
+      scope: 'all_except_current'
+    });
+
+    res.json({ message: 'Revoked all other sessions successfully' });
+  } catch (error) {
+    console.error('Revoke other sessions error:', error);
+    res.status(401).json({ error: 'Invalid or expired refresh token' });
   }
 });
 

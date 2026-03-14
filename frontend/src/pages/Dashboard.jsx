@@ -21,6 +21,8 @@ function Dashboard({ token, setToken, role = 'user' }) {
   const [profileData, setProfileData] = useState({ email: '', mfa_enabled: false });
   const [mfaSetupData, setMfaSetupData] = useState(null);
   const [mfaCode, setMfaCode] = useState('');
+  const [sessionList, setSessionList] = useState([]);
+  const [currentSessionJti, setCurrentSessionJti] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [importData, setImportData] = useState('');
@@ -344,8 +346,44 @@ function Dashboard({ token, setToken, role = 'user' }) {
     try {
       const response = await auth.getProfile();
       setProfileData({ email: response.data.email || '', mfa_enabled: response.data.mfa_enabled || false });
+
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (refreshToken) {
+        try {
+          const payload = JSON.parse(atob(refreshToken.split('.')[1]));
+          setCurrentSessionJti(payload?.jti || '');
+        } catch {
+          setCurrentSessionJti('');
+        }
+      }
+
+      const sessionsRes = await auth.getSessions();
+      setSessionList(sessionsRes.data || []);
     } catch (err) {
       console.error('Error loading profile:', err);
+    }
+  };
+
+  const handleRevokeSession = async (sessionId) => {
+    if (!window.confirm('Revoke this session?')) return;
+    try {
+      await auth.revokeSession(sessionId);
+      showNotification('Session revoked successfully!');
+      await loadProfile();
+    } catch (err) {
+      showNotification('Error revoking session: ' + (err.response?.data?.error || err.message), 'error');
+    }
+  };
+
+  const handleRevokeOthers = async () => {
+    if (!window.confirm('Revoke all sessions except current device?')) return;
+    try {
+      const refreshToken = localStorage.getItem('refreshToken');
+      await auth.revokeOtherSessions(refreshToken);
+      showNotification('All other sessions revoked!');
+      await loadProfile();
+    } catch (err) {
+      showNotification('Error revoking other sessions: ' + (err.response?.data?.error || err.message), 'error');
     }
   };
 
@@ -946,6 +984,43 @@ function Dashboard({ token, setToken, role = 'user' }) {
                   </div>
                   <button onClick={handleMfaDisable} className="danger">Disable 2FA</button>
                 </>
+              )}
+            </div>
+
+            <div style={{ marginTop: '20px', padding: '15px', background: '#1a1a2e', borderRadius: '8px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                <h3 style={{ marginTop: 0, marginBottom: 0 }}>Active Sessions</h3>
+                <button onClick={handleRevokeOthers} className="danger">Revoke all except current</button>
+              </div>
+
+              {sessionList.length === 0 ? (
+                <p style={{ color: '#94a3b8', marginTop: '10px' }}>No active sessions found.</p>
+              ) : (
+                <div style={{ marginTop: '10px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {sessionList.map(s => {
+                    const isCurrent = currentSessionJti && s.token_jti === currentSessionJti && !s.revoked_at;
+                    return (
+                      <div key={s.id} style={{ border: '1px solid #334155', borderRadius: '8px', padding: '10px', background: 'rgba(15,23,42,0.6)' }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px' }}>
+                          <div>
+                            <div style={{ color: '#e2e8f0', fontWeight: 600 }}>
+                              {isCurrent ? '🟢 Current device' : 'Device session'}
+                            </div>
+                            <div style={{ color: '#94a3b8', fontSize: '12px' }}>
+                              {s.user_agent || 'Unknown agent'}
+                            </div>
+                            <div style={{ color: '#64748b', fontSize: '12px' }}>
+                              IP: {s.ip_address || '-'} • Created: {new Date(s.created_at).toLocaleString()}
+                            </div>
+                          </div>
+                          {!isCurrent && !s.revoked_at && (
+                            <button onClick={() => handleRevokeSession(s.id)} className="secondary">Revoke</button>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
             </div>
 

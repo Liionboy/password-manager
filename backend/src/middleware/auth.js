@@ -122,5 +122,6 @@ module.exports = {
   generateTempToken, 
   refreshAccessToken,
   revokeAllRefreshSessions,
-  JWT_SECRET 
+  JWT_SECRET,
+  REFRESH_SECRET
 };

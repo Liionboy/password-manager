@@ -39,6 +39,9 @@ export const auth = {
     const tempToken = localStorage.getItem('tempToken');
     return api.post('/auth/mfa/verify-temp', { tempToken, code });
   },
+  getSessions: () => api.get('/auth/sessions'),
+  revokeSession: (id) => api.post(`/auth/sessions/${id}/revoke`),
+  revokeOtherSessions: (refreshToken) => api.post('/auth/sessions/revoke-others', { refreshToken }),
   forgotPassword: (username) => api.post('/auth/forgot-password', JSON.stringify({ username }), { headers: { 'Content-Type': 'application/json' } }),
   resetPassword: (data) => api.post('/auth/reset-password', JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } })
 };
