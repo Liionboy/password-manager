@@ -24,7 +24,7 @@ const authLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many authentication attempts. Please try again later.' }
+  message: { error: 'Ai făcut prea multe încercări de autentificare. Te rog încearcă din nou în câteva minute.' }
 });
 
 const sensitiveAuthLimiter = rateLimit({
@@ -32,15 +32,15 @@ const sensitiveAuthLimiter = rateLimit({
   max: 5,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many attempts. Please try again later.' }
+  message: { error: 'Prea multe încercări într-un timp scurt. Te rog încearcă din nou puțin mai târziu.' }
 });
 
 const apiLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 300,
+  max: 600,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many requests. Please slow down.' }
+  message: { error: 'Ai trimis foarte multe cereri într-un timp scurt. Încearcă din nou în 1-2 minute.' }
 });
 
 const db = new Database({
