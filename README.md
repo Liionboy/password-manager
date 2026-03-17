@@ -2,9 +2,35 @@
 
 A secure, self-hosted password manager application built with React, Node.js, and PostgreSQL - all containerized with Docker.
 
-![Version](https://img.shields.io/badge/version-2.3.4-blue)
+![Version](https://img.shields.io/badge/version-2.4.0-blue)
 ![Docker](https://img.shields.io/badge/Docker-ready-blueviolet)
 ![License](https://img.shields.io/badge/license-MIT-green)
+
+## 🐳 Docker Hub (Recommended)
+
+Pre-built images available on Docker Hub - no need to clone and build locally:
+
+```bash
+# Quick start with Docker Hub images
+curl -O https://raw.githubusercontent.com/Liionboy/password-manager/main/docker-compose.hub.yml
+# Edit .env with your settings
+docker compose -f docker-compose.hub.yml up -d
+```
+
+Or manually:
+
+```bash
+docker run -d \
+  -p 5000:5000 \
+  -p 1532:8080 \
+  -e DB_PASSWORD=your_secure_password \
+  -e JWT_SECRET=your_jwt_secret \
+  adrianbrisca/password-manager:latest
+```
+
+**Docker Hub Images:**
+- Backend: https://hub.docker.com/r/adrianbrisca/password-manager
+- Frontend: https://hub.docker.com/r/adrianbrisca/password-manager-frontend
 
 ## ✨ Features
 
