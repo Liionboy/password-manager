@@ -1,0 +1,69 @@
+# Docker Compose for Docker Hub images (no build required)
+# Usage: curl -O https://raw.githubusercontent.com/Liionboy/password-manager/main/docker-compose.hub.yml
+
+services:
+  backend:
+    image: adrianbrisca/password-manager:latest
+    container_name: password-manager-backend
+    ports:
+      - "5000:5000"
+    env_file:
+      - .env
+    environment:
+      - NODE_ENV=production
+    user: "node"
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+      - /app/data:size=32m,mode=700
+    restart: unless-stopped
+    networks:
+      - password-manager-network
+    depends_on:
+      - postgres
+
+  frontend:
+    image: adrianbrisca/password-manager-frontend:latest
+    container_name: password-manager-frontend
+    ports:
+      - "1532:8080"
+    depends_on:
+      - backend
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    tmpfs:
+      - /tmp:size=32m,mode=1777
+      - /var/cache/nginx:size=32m,mode=755
+      - /var/run:size=8m,mode=755
+    networks:
+      - password-manager-network
+
+  postgres:
+    image: postgres:15-alpine
+    container_name: password-manager-db
+    env_file:
+      - .env
+    environment:
+      - POSTGRES_USER=${DB_USER:-postgres}
+      - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
+      - POSTGRES_DB=${DB_NAME:-passwordmanager}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    restart: unless-stopped
+    networks:
+      - password-manager-network
+
+volumes:
+  pgdata:
+
+networks:
+  password-manager-network:
+    driver: bridge
