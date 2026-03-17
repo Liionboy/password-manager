@@ -1,8 +1,6 @@
 services:
   backend:
-    build:
-      context: ./backend
-      dockerfile: Dockerfile
+    image: adrianbrisca/password-manager:latest
     container_name: password-manager-backend
     ports:
       - "5000:5000"
@@ -26,9 +24,7 @@ services:
       - postgres
 
   frontend:
-    build:
-      context: .
-      dockerfile: ./frontend/Dockerfile
+    image: adrianbrisca/password-manager-frontend:latest
     container_name: password-manager-frontend
     ports:
       - "1532:8080"
