@@ -17,13 +17,20 @@ function encrypt(text, userKey) {
     return JSON.stringify(encrypted);
   }
   
-  // Legacy mode (global key)
+  // Legacy mode (global key) - use PBKDF2 key derivation for better security (fixes CodeQL Alert #3)
   if (!ENCRYPTION_KEY) {
     console.error('ERROR: ENCRYPTION_KEY environment variable is not set!');
     throw new Error('Encryption key not configured');
   }
-  
-  return CryptoJS.AES.encrypt(text, userKey || ENCRYPTION_KEY).toString();
+
+  const key = CryptoJS.PBKDF2(userKey || ENCRYPTION_KEY, CryptoJS.enc.Hex.parse('salt'), {
+    keySize: 256 / 32,
+    iterations: 10000,
+    hasher: CryptoJS.algo.SHA256
+  });
+  const iv = CryptoJS.lib.WordArray.random(16);
+  const encrypted = CryptoJS.AES.encrypt(text, key, { iv: iv });
+  return iv.toString() + ':' + encrypted.toString();
 }
 
 /**
@@ -42,12 +49,26 @@ function decrypt(ciphertext, userKey) {
     return decryptPerUser(encrypted, userKey);
   }
   
-  // Legacy mode (CryptoJS format)
+  // Legacy mode (CryptoJS format) - support both old and new formats
   if (!ENCRYPTION_KEY) {
     console.error('ERROR: ENCRYPTION_KEY environment variable is not set!');
     throw new Error('Encryption key not configured');
   }
-  
+
+  // New format: iv:ciphertext (PBKDF2-derived key)
+  if (ciphertext.includes(':')) {
+    const [ivHex, encryptedHex] = ciphertext.split(':');
+    const key = CryptoJS.PBKDF2(userKey || ENCRYPTION_KEY, CryptoJS.enc.Hex.parse('salt'), {
+      keySize: 256 / 32,
+      iterations: 10000,
+      hasher: CryptoJS.algo.SHA256
+    });
+    const iv = CryptoJS.enc.Hex.parse(ivHex);
+    const bytes = CryptoJS.AES.decrypt(encryptedHex, key, { iv: iv });
+    return bytes.toString(CryptoJS.enc.Utf8);
+  }
+
+  // Old format: simple CryptoJS (backward compatibility)
   const bytes = CryptoJS.AES.decrypt(ciphertext, userKey || ENCRYPTION_KEY);
   return bytes.toString(CryptoJS.enc.Utf8);
 }

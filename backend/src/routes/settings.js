@@ -259,10 +259,25 @@ const sendNotification = async (db, userId, subject, body, actionType) => {
       }
     };
 
+    // Security: Escape HTML entities to prevent XSS (fixes CodeQL Alert #30)
+    const escapeHtml = (str) => {
+      if (!str) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#x27;');
+    };
+
+    const safeBody = escapeHtml(body);
+    const safeSubject = escapeHtml(subject);
+    const safeActionType = escapeHtml(actionType);
+
     await transporter.sendMail({
       from: settings.smtp_from,
       to: recipientEmail,
-      subject: subject,
+      subject: safeSubject,
       html: actionType === 'reset' ? `
         <!DOCTYPE html>
         <html>
@@ -288,7 +303,7 @@ const sendNotification = async (db, userId, subject, body, actionType) => {
               <p>Hello,</p>
               <p>You requested a password reset for your account.</p>
               <p>Click the button below to reset your password:</p>
-              <a href="${body}" class="btn">Reset Password</a>
+              <a href="${safeBody}" class="btn">Reset Password</a>
               <p style="font-size: 12px; color: #666;">This link will expire in 1 hour.</p>
               <p style="font-size: 12px; color: #999;">If you did not request this, please ignore this email.</p>
             </div>
@@ -324,10 +339,10 @@ const sendNotification = async (db, userId, subject, body, actionType) => {
             </div>
             <div class="content">
               <p>Hello,</p>
-              <p>Your password vault has been <strong>${getActionText(actionType)}</strong>:</p>
-              <div class="alert alert-${actionType}">
-                <strong>${getActionEmoji(actionType)} ${subject}</strong>
-                <p style="margin: 5px 0 0 0;">${body}</p>
+              <p>Your password vault has been <strong>${getActionText(safeActionType)}</strong>:</p>
+              <div class="alert alert-${safeActionType}">
+                <strong>${getActionEmoji(safeActionType)} ${safeSubject}</strong>
+                <p style="margin: 5px 0 0 0;">${safeBody}</p>
               </div>
               <p class="timestamp">Time: ${new Date().toLocaleString()}</p>
             </div>

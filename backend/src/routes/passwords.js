@@ -176,7 +176,8 @@ router.get('/', async (req, res) => {
         }
         return { ...p, password: decrypt(p.encrypted_password) };
       } catch (e) {
-        console.error('Decryption error for password', p.id, e.message);
+        // Security: Don't log error details that might contain sensitive data (fixes CodeQL Alert #1)
+        console.error('Decryption error for password ID:', p.id);
         return { ...p, password: '[DECRYPTION_FAILED]' };
       }
     });
@@ -452,7 +453,10 @@ router.delete('/:id', async (req, res) => {
 
 router.post('/generate', (req, res) => {
   try {
-    const { length = 16, uppercase = true, lowercase = true, numbers = true, symbols = true } = req.body;
+    // Security: Validate length parameter to prevent type confusion (fixes CodeQL Alert #29)
+    const rawLength = req.body.length;
+    const length = Number.isInteger(rawLength) ? Math.min(Math.max(rawLength, 4), 128) : 16;
+    const { uppercase = true, lowercase = true, numbers = true, symbols = true } = req.body;
     const password = generatePassword(length, { uppercase, lowercase, numbers, symbols });
     res.json({ password });
   } catch (error) {
@@ -489,7 +493,8 @@ router.get('/export', async (req, res) => {
           folder: p.folder_name
         };
       } catch (e) {
-        console.error('Export decryption error for', p.id, e.message);
+        // Security: Don't log error details that might contain sensitive data (fixes CodeQL Alert #2)
+        console.error('Export decryption error for ID:', p.id);
         return {
           title: p.title,
           username: p.username,
