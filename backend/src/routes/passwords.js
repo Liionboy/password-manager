@@ -453,13 +453,14 @@ router.delete('/:id', async (req, res) => {
 
 router.post('/generate', (req, res) => {
   try {
-    // Security: Validate length parameter to prevent type confusion (fixes CodeQL Alert #29)
-    const rawLength = req.body.length;
+    // Security: Validate and sanitize all parameters from req.body (fixes CodeQL Alerts #29, #35)
+    const body = typeof req.body === 'object' && req.body !== null ? req.body : {};
+    const rawLength = body.length;
     const length = Number.isInteger(rawLength) ? Math.min(Math.max(rawLength, 4), 128) : 16;
-    const uppercase = req.body.uppercase !== false;
-    const lowercase = req.body.lowercase !== false;
-    const numbers = req.body.numbers !== false;
-    const symbols = req.body.symbols !== false;
+    const uppercase = body.uppercase === true || body.uppercase === 'true';
+    const lowercase = body.lowercase !== false && body.lowercase !== 'false';
+    const numbers = body.numbers !== false && body.numbers !== 'false';
+    const symbols = body.symbols === true || body.symbols === 'true' || body.symbols === undefined;
     const password = generatePassword(length, { uppercase, lowercase, numbers, symbols });
     res.json({ password });
   } catch (error) {
