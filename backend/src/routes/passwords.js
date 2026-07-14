@@ -3,6 +3,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { encrypt, decrypt, generatePassword } = require('../utils/crypto');
 const { sendNotification } = require('./settings');
 const { requireEncryptionKey } = require('../middleware/encryption-key');
+const { getTeamMembership, canManageTeamResource } = require('../utils/team-access');
 
 const router = express.Router();
 
@@ -21,8 +22,7 @@ router.get('/health', async (req, res) => {
       FROM passwords p
       LEFT JOIN users u ON p.user_id = u.id
       WHERE (p.user_id = $1
-          OR p.team_id IN (SELECT team_id FROM team_members WHERE user_id = $1)
-          OR u.id IN (SELECT user_id FROM team_members WHERE team_id IN (SELECT team_id FROM team_members WHERE user_id = $1)))
+          OR p.team_id IN (SELECT team_id FROM team_members WHERE user_id = $1))
       ORDER BY p.updated_at DESC
     `).all(userId);
 
@@ -136,8 +136,7 @@ router.get('/', async (req, res) => {
       LEFT JOIN users u ON p.user_id = u.id
       LEFT JOIN teams t ON p.team_id = t.id
       WHERE (p.user_id = $1 
-          OR p.team_id IN (SELECT team_id FROM team_members WHERE user_id = $1)
-          OR u.id IN (SELECT user_id FROM team_members WHERE team_id IN (SELECT team_id FROM team_members WHERE user_id = $1)))
+          OR p.team_id IN (SELECT team_id FROM team_members WHERE user_id = $1))
     `;
     const params = [userId];
 
@@ -248,6 +247,11 @@ router.post('/:id/restore/:historyId', async (req, res) => {
       return res.status(404).json({ error: 'Password not found' });
     }
 
+    const membership = await getTeamMembership(db, existing.team_id, userId);
+    if (existing.user_id !== userId && !canManageTeamResource(membership)) {
+      return res.status(403).json({ error: 'Only the owner or a team administrator can restore password history' });
+    }
+
     const historyVersion = await db.prepare(`
       SELECT * FROM password_history
       WHERE id = $1 AND password_id = $2
@@ -315,7 +319,11 @@ router.post('/', async (req, res) => {
 
     let teamId = null;
     if (folder_id) {
-      const folder = await db.prepare('SELECT team_id FROM folders WHERE id = ?').get(folder_id);
+      const folder = await db.prepare(`
+        SELECT team_id FROM folders
+        WHERE id = $1 AND (user_id = $2 OR team_id IN (SELECT team_id FROM team_members WHERE user_id = $2))
+      `).get(folder_id, userId);
+      if (!folder) return res.status(403).json({ error: 'Folder access denied' });
       if (folder && folder.team_id) {
         teamId = folder.team_id;
       }
@@ -365,6 +373,11 @@ router.put('/:id', async (req, res) => {
 
     if (!existing) {
       return res.status(404).json({ error: 'Password not found' });
+    }
+
+    const membership = await getTeamMembership(db, existing.team_id, userId);
+    if (existing.user_id !== userId && !canManageTeamResource(membership)) {
+      return res.status(403).json({ error: 'Only the owner or a team administrator can update this password' });
     }
 
     // Snapshot previous version before update
@@ -428,15 +441,9 @@ router.delete('/:id', async (req, res) => {
     }
 
     const isOwner = existing.user_id === userId;
-    const isTeamMember = existing.team_id && await db.prepare('SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2').get(existing.team_id, userId);
-    const canSeePassword = isOwner || isTeamMember;
-    
-    if (!canSeePassword) {
-      return res.status(403).json({ error: 'You do not have access to this password' });
-    }
-
-    if (!isOwner && !isTeamMember) {
-      return res.status(403).json({ error: 'Only owner or team member can delete this password' });
+    const membership = await getTeamMembership(db, existing.team_id, userId);
+    if (!isOwner && !canManageTeamResource(membership)) {
+      return res.status(403).json({ error: 'Only the owner or a team administrator can delete this password' });
     }
 
     const result = await db.prepare('DELETE FROM passwords WHERE id = $1').run(id);
@@ -474,12 +481,22 @@ router.get('/export', async (req, res) => {
     const db = req.db;
     const userId = req.user.id;
 
+    const folders = await db.prepare(`
+      SELECT id, name, parent_id
+      FROM folders
+      WHERE user_id = $1
+         OR team_id IN (SELECT team_id FROM team_members WHERE user_id = $1)
+      ORDER BY id
+    `).all(userId);
+
     const passwords = await db.prepare(`
       SELECT p.*, c.name as category_name, f.name as folder_name
       FROM passwords p 
       LEFT JOIN categories c ON p.category_id = c.id 
       LEFT JOIN folders f ON p.folder_id = f.id
       WHERE p.user_id = $1
+         OR p.team_id IN (SELECT team_id FROM team_members WHERE user_id = $1)
+      ORDER BY p.id
     `).all(userId);
 
     const exportData = passwords.map(p => {
@@ -494,7 +511,8 @@ router.get('/export', async (req, res) => {
           url: p.url,
           notes: p.notes,
           category: p.category_name,
-          folder: p.folder_name
+          folder: p.folder_name,
+          folderId: p.folder_id
         };
       } catch (e) {
         // Security: Don't log error details that might contain sensitive data (fixes CodeQL Alert #2)
@@ -506,12 +524,23 @@ router.get('/export', async (req, res) => {
           url: p.url,
           notes: p.notes,
           category: p.category_name,
-          folder: p.folder_name
+          folder: p.folder_name,
+          folderId: p.folder_id
         };
       }
     });
 
-    res.json(exportData);
+    res.json({
+      format: 'password-manager-export',
+      version: 2,
+      exportedAt: new Date().toISOString(),
+      folders: folders.map(folder => ({
+        id: folder.id,
+        name: folder.name,
+        parentId: folder.parent_id
+      })),
+      passwords: exportData
+    });
   } catch (error) {
     console.error('Export passwords error:', error);
     res.status(500).json({ error: 'Internal server error' });
@@ -525,14 +554,97 @@ router.post('/import', async (req, res) => {
     const data = req.body;
 
     let passwordsToImport = [];
+    let foldersToImport = [];
 
     if (Array.isArray(data)) {
       passwordsToImport = data;
+    } else if (Array.isArray(data.passwords)) {
+      passwordsToImport = data.passwords;
+      foldersToImport = Array.isArray(data.folders) ? data.folders : [];
     } else if (data.items && Array.isArray(data.items)) {
-      passwordsToImport = data.items;
+      passwordsToImport = data.items.filter(item => item.type === undefined || item.type === 1);
+      foldersToImport = Array.isArray(data.folders) ? data.folders : [];
     } else {
       return res.status(400).json({ error: 'Invalid import data format' });
     }
+
+    if (passwordsToImport.length > 5000 || foldersToImport.length > 1000) {
+      return res.status(400).json({ error: 'Import file is too large' });
+    }
+
+    const folderIdMap = new Map();
+    const folderNameMap = new Map();
+    let importedFolderCount = 0;
+
+    const findOrCreateFolder = async (name, parentId = null) => {
+      const normalizedName = String(name || '').trim().slice(0, 255);
+      if (!normalizedName) return null;
+      const cacheKey = `${parentId || 'root'}:${normalizedName.toLowerCase()}`;
+      if (folderNameMap.has(cacheKey)) return folderNameMap.get(cacheKey);
+
+      const existing = await db.prepare(`
+        SELECT id FROM folders
+        WHERE user_id = $1 AND name = $2 AND parent_id IS NOT DISTINCT FROM $3
+        ORDER BY id LIMIT 1
+      `).get(userId, normalizedName, parentId);
+      if (existing) {
+        folderNameMap.set(cacheKey, existing.id);
+        return existing.id;
+      }
+
+      const created = await db.prepare(
+        'INSERT INTO folders (user_id, name, parent_id, team_id) VALUES ($1, $2, $3, NULL)'
+      ).run(userId, normalizedName, parentId);
+      importedFolderCount++;
+      folderNameMap.set(cacheKey, created.lastInsertRowid);
+      return created.lastInsertRowid;
+    };
+
+    let pendingFolders = foldersToImport.map(folder => ({ ...folder }));
+    while (pendingFolders.length > 0) {
+      const nextPending = [];
+      let progressed = false;
+      for (const folder of pendingFolders) {
+        const sourceId = folder.id;
+        const sourceParentId = folder.parentId ?? folder.parent_id ?? null;
+        if (sourceParentId !== null && !folderIdMap.has(String(sourceParentId))) {
+          nextPending.push(folder);
+          continue;
+        }
+        const parentId = sourceParentId === null ? null : folderIdMap.get(String(sourceParentId));
+        const importedId = await findOrCreateFolder(folder.name, parentId);
+        if (sourceId !== undefined && sourceId !== null) folderIdMap.set(String(sourceId), importedId);
+        progressed = true;
+      }
+      if (!progressed) {
+        for (const folder of nextPending) {
+          const importedId = await findOrCreateFolder(folder.name, null);
+          if (folder.id !== undefined && folder.id !== null) folderIdMap.set(String(folder.id), importedId);
+        }
+        break;
+      }
+      pendingFolders = nextPending;
+    }
+
+    const categoryMap = new Map();
+    const findOrCreateCategory = async (name) => {
+      const normalizedName = String(name || '').trim().slice(0, 255);
+      if (!normalizedName) return null;
+      const key = normalizedName.toLowerCase();
+      if (categoryMap.has(key)) return categoryMap.get(key);
+      const existing = await db.prepare(
+        'SELECT id FROM categories WHERE LOWER(name) = LOWER($1) ORDER BY id LIMIT 1'
+      ).get(normalizedName);
+      if (existing) {
+        categoryMap.set(key, existing.id);
+        return existing.id;
+      }
+      const created = await db.prepare(
+        'INSERT INTO categories (user_id, name) VALUES (NULL, $1)'
+      ).run(normalizedName);
+      categoryMap.set(key, created.lastInsertRowid);
+      return created.lastInsertRowid;
+    };
 
     let importedCount = 0;
 
@@ -540,24 +652,32 @@ router.post('/import', async (req, res) => {
       const title = p.title || p.name || 'Imported';
       const username = p.login?.username || p.username || null;
       const password = p.login?.password || p.password || null;
-      const url = p.login?.uri || p.url || null;
+      const url = p.login?.uri || p.login?.uris?.[0]?.uri || p.url || null;
       const notes = p.notes || null;
 
       if (password) {
+        const sourceFolderId = p.folderId ?? p.folder_id ?? null;
+        let folderId = sourceFolderId === null ? null : folderIdMap.get(String(sourceFolderId));
+        if (!folderId && p.folder) folderId = await findOrCreateFolder(p.folder, null);
+        const categoryId = await findOrCreateCategory(p.category);
         const encryptedPassword = req.encryptionKey 
           ? encrypt(password, req.encryptionKey)
           : encrypt(password);
         await db.prepare(`
-          INSERT INTO passwords (user_id, title, username, encrypted_password, url, notes)
-          VALUES ($1, $2, $3, $4, $5, $6)
-        `).run(userId, title, username, encryptedPassword, url, notes);
+          INSERT INTO passwords (user_id, title, username, encrypted_password, url, notes, folder_id, category_id)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        `).run(userId, String(title).slice(0, 255), username, encryptedPassword, url, notes, folderId, categoryId);
         importedCount++;
       }
     }
 
     await sendNotification(db, userId, 'Passwords Imported', `${importedCount} passwords were imported to your vault.`, 'add');
 
-    res.json({ message: `Successfully imported ${importedCount} passwords` });
+    res.json({
+      message: `Successfully imported ${importedCount} passwords and ${importedFolderCount} folders`,
+      importedPasswords: importedCount,
+      importedFolders: importedFolderCount
+    });
   } catch (error) {
     console.error('Import passwords error:', error);
     res.status(500).json({ error: 'Internal server error' });

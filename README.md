@@ -2,7 +2,7 @@
 
 A secure, self-hosted password manager application built with React, Node.js, and PostgreSQL - all containerized with Docker.
 
-![Version](https://img.shields.io/badge/version-2.4.0-blue)
+![Version](https://img.shields.io/badge/version-2.6.0-blue)
 ![Docker](https://img.shields.io/badge/Docker-ready-blueviolet)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -21,7 +21,6 @@ Or manually:
 
 ```bash
 docker run -d \
-  -p 5000:5000 \
   -p 1532:8080 \
   -e DB_PASSWORD=your_secure_password \
   -e JWT_SECRET=your_jwt_secret \
@@ -99,11 +98,12 @@ http://localhost:1532
 
 ### First Time Setup
 
-1. Register a new account on the registration page
-2. Login with your credentials
-3. Start adding your passwords!
+1. On an empty database, set `ALLOW_FIRST_ADMIN=true` in `.env` and start the application.
+2. Register the first account. That account becomes administrator.
+3. Immediately set `ALLOW_FIRST_ADMIN=false` and restart the backend.
+4. Login with your credentials and start adding passwords.
 
-> **Note:** The first registered user becomes admin. Default admin credentials: `admin` / `admin` (after resetting the database)
+No default administrator account or password is created.
 
 ### Adding a Password
 
@@ -327,7 +327,7 @@ Legacy bcrypt hashes are still accepted and will be transparently upgraded to Ar
 | GET | `/api/teams` | Get user's teams |
 | GET | `/api/teams/all` | Get all teams (admin only) |
 | POST | `/api/teams` | Create a team |
-| POST | `/api/teams/join` | Join a team |
+| POST | `/api/teams/join` | Disabled; a team administrator must add members |
 | DELETE | `/api/teams/:id` | Delete a team |
 | GET | `/api/teams/:id/members` | Get team members |
 | POST | `/api/teams/:id/members` | Add member to team |

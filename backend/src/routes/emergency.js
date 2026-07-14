@@ -182,6 +182,15 @@ router.post('/requests/:id/revoke', async (req, res) => {
 router.post('/requests/:id/finalize-auto', async (req, res) => {
   try {
     const id = Number(req.params.id);
+    const authorized = await req.db.query(
+      `SELECT owner_user_id, contact_user_id FROM emergency_access_requests
+       WHERE id = $1 AND (owner_user_id = $2 OR contact_user_id = $2)`,
+      [id, req.user.id]
+    );
+    if (!authorized.rows.length) {
+      return res.status(403).json({ error: 'Not authorized for this request' });
+    }
+
     const row = await req.db.query(
       `UPDATE emergency_access_requests
        SET status = 'auto_granted', decision_at = CURRENT_TIMESTAMP, expires_at = CURRENT_TIMESTAMP + interval '24 hours'
@@ -190,11 +199,6 @@ router.post('/requests/:id/finalize-auto', async (req, res) => {
       [id]
     );
     if (!row.rows.length) return res.status(400).json({ error: 'Request not ready for auto-grant' });
-
-    const reqRow = row.rows[0];
-    if (![reqRow.owner_user_id, reqRow.contact_user_id].includes(req.user.id)) {
-      return res.status(403).json({ error: 'Not authorized for this request' });
-    }
 
     res.json({ message: 'Emergency access auto-granted' });
   } catch (error) {

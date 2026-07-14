@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import * as OTPAuth from 'otpauth';
 import { passwords, categories, cards, notes, emergency, folders as foldersApi, teams, auth } from '../api';
 
 function Dashboard({ token, setToken, role = 'user' }) {
@@ -31,6 +30,7 @@ function Dashboard({ token, setToken, role = 'user' }) {
   const [allUsers, setAllUsers] = useState([]);
   const [emergencyForm, setEmergencyForm] = useState({ contactUserId: '', delayHours: 168, ownerUserId: '' });
   const [newPassword, setNewPassword] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [importData, setImportData] = useState('');
   const [expandedFolders, setExpandedFolders] = useState({});
@@ -455,18 +455,32 @@ function Dashboard({ token, setToken, role = 'user' }) {
   const handleImport = async () => {
     try {
       const data = JSON.parse(importData);
-      if (!Array.isArray(data) && !(data.items && Array.isArray(data.items))) {
-        showNotification('Invalid format. Expected an array of passwords or Bitwarden export.', 'error');
+      if (!Array.isArray(data) && !Array.isArray(data.items) && !Array.isArray(data.passwords)) {
+        showNotification('Invalid format. Expected a Password Manager or Bitwarden JSON export.', 'error');
         return;
       }
-      await passwords.import(data);
+      const response = await passwords.import(data);
       setShowImportModal(false);
       setImportData('');
       loadPasswords();
       loadFolders();
-      showNotification('Import successful!');
+      showNotification('Import successful: ' + response.data.message);
     } catch (err) {
       showNotification('Error importing: ' + (err.response?.data?.error || err.message), 'error');
+    }
+  };
+
+  const handleImportFile = async (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    try {
+      const text = await file.text();
+      JSON.parse(text);
+      setImportData(text);
+      showNotification(`Loaded ${file.name}. Review and press Import.`);
+    } catch {
+      setImportData('');
+      showNotification('The selected file is not valid JSON.', 'error');
     }
   };
 
@@ -589,12 +603,18 @@ function Dashboard({ token, setToken, role = 'user' }) {
           showNotification('Password must be at least 8 characters!', 'error');
           return;
         }
+        if (!currentPassword) {
+          showNotification('Current password is required!', 'error');
+          return;
+        }
         data.password = newPassword;
+        data.currentPassword = currentPassword;
       }
       
       await auth.updateProfile(data);
       showNotification('Profile updated successfully!');
       setNewPassword('');
+      setCurrentPassword('');
       setConfirmPassword('');
       setShowProfileModal(false);
     } catch (err) {
@@ -604,19 +624,8 @@ function Dashboard({ token, setToken, role = 'user' }) {
 
   const handleMfaSetup = async () => {
     try {
-      const userId = localStorage.getItem('userId') || localStorage.getItem('username');
-      const totp = new OTPAuth.TOTP({
-        issuer: 'PasswordManager',
-        label: userId,
-        algorithm: 'SHA1',
-        digits: 6,
-        period: 30,
-        secret: new OTPAuth.Secret({ size: 20 })
-      });
-      const secret = totp.secret.base32;
-      const otpauthUrl = totp.toString();
-      const response = await auth.mfaSetup(secret, otpauthUrl);
-      setMfaSetupData({ qrCode: response.data.qrCode, secret: secret });
+      const response = await auth.mfaSetup();
+      setMfaSetupData({ qrCode: response.data.qrCode, secret: response.data.secret });
     } catch (err) {
       showNotification('Error setting up MFA: ' + (err.response?.data?.error || err.message), 'error');
     }
@@ -690,25 +699,25 @@ function Dashboard({ token, setToken, role = 'user' }) {
             </svg>
             <h1>Password Manager</h1>
           </div>
-          <div style={{ display: 'flex', gap: '10px' }}>
+          <div className="header-actions">
             <select value={theme} onChange={(e) => setTheme(e.target.value)} style={{ width: '210px' }}>
               {themeOptions.map(t => <option key={t.value} value={t.value}>{t.label}</option>)}
             </select>
-            <button onClick={handleProfileClick} className="secondary">Profile</button>
+            <button onClick={handleProfileClick} className="secondary compact-button">Profile</button>
             <Link to="/teams">
-              <button className="secondary">Teams</button>
+              <button className="secondary compact-button">Teams</button>
             </Link>
             {isAdmin && (
               <>
                 <Link to="/team">
-                  <button className="secondary">Users</button>
+                  <button className="secondary compact-button">Users</button>
                 </Link>
                 <Link to="/settings">
-                  <button className="secondary">Settings</button>
+                  <button className="secondary compact-button">Settings</button>
                 </Link>
               </>
             )}
-            <button onClick={handleLogout} className="secondary">Logout</button>
+            <button onClick={handleLogout} className="secondary compact-button">Logout</button>
             <span style={{ color: '#fff', fontSize: '14px', marginLeft: '10px', background: '#374151', padding: '5px 10px', borderRadius: '4px' }}>
               👤 {localStorage.getItem('username')}
             </span>
@@ -771,13 +780,21 @@ function Dashboard({ token, setToken, role = 'user' }) {
           <div className="actions-bar">
             <div>
               {activeTab === 'passwords' ? (
-                <Link to={selectedFolder ? `/add?folder_id=${selectedFolder}` : `/add`}>
-                  <button className="success">+ Add Password</button>
-                </Link>
+                <button
+                  type="button"
+                  className="success"
+                  onClick={() => navigate(selectedFolder ? `/add?folder_id=${selectedFolder}` : '/add')}
+                >
+                  + Add Password
+                </button>
               ) : activeTab === 'cards' ? (
-                <Link to={selectedFolder ? `/add-card?folder_id=${selectedFolder}` : `/add-card`}>
-                  <button className="success">+ Add Card</button>
-                </Link>
+                <button
+                  type="button"
+                  className="success"
+                  onClick={() => navigate(selectedFolder ? `/add-card?folder_id=${selectedFolder}` : '/add-card')}
+                >
+                  + Add Card
+                </button>
               ) : (
                 <button className="success" onClick={openCreateNoteModal}>+ Add Note</button>
               )}
@@ -830,6 +847,7 @@ function Dashboard({ token, setToken, role = 'user' }) {
               ].map(metric => (
                 <button
                   key={metric.key}
+                  className="health-metric-button"
                   onClick={() => setHealthFilter(prev => prev === metric.key ? '' : metric.key)}
                   style={{
                     textAlign: 'left',
@@ -1094,11 +1112,17 @@ function Dashboard({ token, setToken, role = 'user' }) {
         }}>
           <div className="form-container">
             <h2>Import Passwords</h2>
-            <p style={{ color: '#94a3b8', marginBottom: '15px' }}>Paste JSON array of passwords:</p>
+            <p style={{ color: '#94a3b8', marginBottom: '15px' }}>Select a JSON export or paste its contents:</p>
+            <input
+              type="file"
+              accept="application/json,.json"
+              onChange={handleImportFile}
+              style={{ marginBottom: '12px' }}
+            />
             <textarea
               value={importData}
               onChange={(e) => setImportData(e.target.value)}
-              placeholder='[{"title": "Example", "username": "user", "password": "pass"}]'
+              placeholder='Password Manager or Bitwarden JSON export'
               style={{ minHeight: '150px', fontFamily: 'monospace' }}
             />
             <div className="form-actions">
@@ -1132,6 +1156,15 @@ function Dashboard({ token, setToken, role = 'user' }) {
 
             <div style={{ marginTop: '20px', padding: '15px', background: '#1a1a2e', borderRadius: '8px' }}>
               <h3 style={{ marginTop: 0 }}>Change Password</h3>
+              <div className="form-group">
+                <label>Current Password</label>
+                <input
+                  type="password"
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="Required when changing password"
+                />
+              </div>
               <div className="form-group">
                 <label>New Password</label>
                 <input

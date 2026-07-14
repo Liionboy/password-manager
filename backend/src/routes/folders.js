@@ -11,23 +11,14 @@ router.get('/', async (req, res) => {
     const userId = req.user.id;
     const userRole = req.user.role;
 
-    let teamId = null;
-    const membership = await db.prepare('SELECT team_id FROM team_members WHERE user_id = ?').get(userId);
-    teamId = membership?.team_id;
-
     let query = `
       SELECT f.*, 
         (SELECT COUNT(*) FROM passwords p WHERE p.folder_id = f.id) as password_count,
         (SELECT COUNT(*) FROM cards c WHERE c.folder_id = f.id) as card_count
       FROM folders f 
-      WHERE f.user_id = $1
+      WHERE (f.user_id = $1 OR f.team_id IN (SELECT team_id FROM team_members WHERE user_id = $1))
     `;
     const params = [userId];
-
-    if (teamId) {
-      query += ` OR f.team_id = $${params.length + 1}`;
-      params.push(teamId);
-    }
 
     query += ` ORDER BY f.name`;
 

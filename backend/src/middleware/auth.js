@@ -25,6 +25,9 @@ function authenticateToken(req, res, next) {
       }
       return res.status(403).json({ error: 'Invalid token' });
     }
+    if (user.mfaPending) {
+      return res.status(403).json({ error: 'MFA verification required' });
+    }
     req.user = user;
     next();
   });

@@ -1,7 +1,7 @@
 # Security & Regression Test Matrix (Milestone 8)
 
 ## Scope
-Release target: `v2.4.0-dev.1`
+Release target: `v2.6.0`
 
 This matrix defines the minimum validation set for every PR and for release preparation.
 
@@ -19,13 +19,13 @@ This matrix defines the minimum validation set for every PR and for release prep
 
 | ID | Area | Test | Expected |
 |---|---|---|---|
-| MAN-01 | Login | Valid admin login (`admin/admin` in clean db) | Success token flow |
+| MAN-01 | Bootstrap | With `ALLOW_FIRST_ADMIN=true`, register the first account, then set it to `false` | First account is admin; no default credentials exist |
 | MAN-02 | Password CRUD | Add/update/delete password | Works, audit intact |
 | MAN-03 | Session security | Revoke one session + logout-all | Old refresh invalidated |
 | MAN-04 | Restore | `scripts/test-restore.sh` with passphrase | Restore completes + health 200 |
 | MAN-05 | Hardening runtime | Inspect backend/frontend containers | non-root + readOnly + capDrop ALL + no-new-privileges |
 
-## Release Gate (v2.4.0-dev.1)
+## Release Gate (v2.6.0)
 
 Release can be tagged only if:
 

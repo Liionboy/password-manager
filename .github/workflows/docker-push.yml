@@ -3,9 +3,6 @@ name: Build & Push to Docker Hub
 on:
   workflow_dispatch:
   push:
-    branches:
-      - master
-      - main
     tags:
       - 'v*'
 
@@ -28,13 +25,23 @@ jobs:
           username: ${{ secrets.DOCKERHUB_USERNAME }}
           password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-      - name: Extract metadata (tags, labels)
-        id: meta
+      - name: Extract backend metadata
+        id: backend_meta
         uses: docker/metadata-action@v5
         with:
           images: adrianbrisca/password-manager
           tags: |
-            type=ref,event=branch
+            type=raw,value=latest
+            type=semver,pattern={{version}}
+            type=sha,prefix=
+
+      - name: Extract frontend metadata
+        id: frontend_meta
+        uses: docker/metadata-action@v5
+        with:
+          images: adrianbrisca/password-manager-frontend
+          tags: |
+            type=raw,value=latest
             type=semver,pattern={{version}}
             type=sha,prefix=
 
@@ -44,7 +51,8 @@ jobs:
         with:
           context: ./backend
           push: true
-          tags: adrianbrisca/password-manager:latest,adrianbrisca/password-manager:${{ github.sha }}
+          tags: ${{ steps.backend_meta.outputs.tags }}
+          labels: ${{ steps.backend_meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
@@ -55,7 +63,8 @@ jobs:
         with:
           context: ./frontend
           push: true
-          tags: adrianbrisca/password-manager-frontend:latest,adrianbrisca/password-manager-frontend:${{ github.sha }}
+          tags: ${{ steps.frontend_meta.outputs.tags }}
+          labels: ${{ steps.frontend_meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64

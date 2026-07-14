@@ -227,16 +227,17 @@ select {
 }
 
 button {
-  padding: 12px 24px;
+  min-height: 34px !important;
+  padding: 8px 14px !important;
   background: linear-gradient(135deg, var(--accent-blue), #004499);
   color: white;
   border: none;
-  border-radius: 8px;
+  border-radius: 7px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 12px !important;
   font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 1px;
+  letter-spacing: 0.5px;
   transition: all 0.3s ease;
   position: relative;
   overflow: hidden;
@@ -311,7 +312,7 @@ button.success:hover {
   border-radius: 8px;
 }
 
-.success {
+.success:not(button) {
   color: var(--accent-cyan);
   margin-bottom: 15px;
 }
@@ -327,11 +328,9 @@ button.success:hover {
 }
 
 .tabs .tab {
-  padding: 12px 24px;
   background: transparent;
   border: none;
   cursor: pointer;
-  font-size: 14px;
   color: var(--text-secondary);
   border-radius: 8px;
   font-weight: 500;
@@ -476,6 +475,7 @@ button.success:hover {
 
 .form-actions {
   display: flex;
+  align-items: center;
   gap: 12px;
   margin-top: 30px;
 }
@@ -528,6 +528,44 @@ button.success:hover {
   margin-bottom: 25px;
   flex-wrap: wrap;
   gap: 15px;
+}
+
+.actions-bar > div:first-child {
+  display: flex;
+  align-items: center;
+  flex-wrap: nowrap;
+  gap: 8px;
+  white-space: nowrap;
+}
+
+.actions-bar > div:first-child > a {
+  display: inline-flex;
+  align-items: center;
+  flex: 0 0 auto;
+}
+
+.actions-bar > div:first-child > button {
+  flex: 0 0 auto;
+}
+
+button.health-metric-button {
+  min-height: 70px !important;
+  padding: 12px !important;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+button.compact-button {
+  min-height: 30px !important;
+  padding: 5px 10px !important;
+  font-size: 10.5px !important;
+  letter-spacing: 0.35px;
 }
 
 .filters {

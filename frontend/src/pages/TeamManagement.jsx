@@ -55,16 +55,6 @@ function TeamManagement({ token }) {
     }
   };
 
-  const handleJoinTeam = async (teamId) => {
-    try {
-      await teams.join(teamId);
-      setSuccess('Joined team successfully!');
-      loadData();
-    } catch (err) {
-      setError(err.response?.data?.error || 'Error joining team');
-    }
-  };
-
   const handleRemoveMember = async (teamId, userId) => {
     if (!window.confirm('Remove this user from team?')) return;
     

@@ -67,38 +67,18 @@ router.post('/', async (req, res) => {
 });
 
 router.post('/join', async (req, res) => {
-  try {
-    const db = req.db;
-    const userId = req.user.id;
-    const { team_id } = req.body;
-
-    if (!team_id) {
-      return res.status(400).json({ error: 'Team ID is required' });
-    }
-
-    const team = await db.prepare('SELECT * FROM teams WHERE id = ?').get(team_id);
-    if (!team) {
-      return res.status(404).json({ error: 'Team not found' });
-    }
-
-    const existing = await db.prepare('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?').get(team_id, userId);
-    if (existing) {
-      return res.status(400).json({ error: 'Already a member' });
-    }
-
-    await db.prepare('INSERT INTO team_members (team_id, user_id, role) VALUES ($1, $2, $3)').run(team_id, userId, 'member');
-
-    res.json({ message: 'Joined team successfully' });
-  } catch (error) {
-    console.error('Join team error:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
+  res.status(403).json({ error: 'Joining a team requires an invitation from a team administrator' });
 });
 
 router.get('/:id/members', async (req, res) => {
   try {
     const db = req.db;
     const { id } = req.params;
+
+    const membership = await db.prepare('SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2').get(id, req.user.id);
+    if (!membership && req.user.role !== 'admin') {
+      return res.status(403).json({ error: 'Team membership required' });
+    }
 
     const members = await db.prepare(`
       SELECT u.id, u.username, tm.role, tm.created_at
@@ -144,6 +124,10 @@ router.post('/:id/members', async (req, res) => {
     const userId = req.user.id;
     const { id } = req.params;
     const { user_id, role = 'member' } = req.body;
+
+    if (!['owner', 'admin', 'member'].includes(role)) {
+      return res.status(400).json({ error: 'Invalid team role' });
+    }
 
     const membership = await db.prepare('SELECT * FROM team_members WHERE team_id = ? AND user_id = ?').get(id, userId);
     if (!membership || membership.role !== 'admin') {

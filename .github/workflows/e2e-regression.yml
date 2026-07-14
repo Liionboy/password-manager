@@ -32,7 +32,7 @@ jobs:
           ENCRYPTION_KEY=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
           DB_HOST=postgres
           DB_USER=postgres
-          DB_PASSWORD=postgres
+          PM_DB_PASSWORD=ci-postgres-password
           DB_NAME=passwordmanager
           NODE_ENV=production
           PORT=5000
@@ -40,6 +40,7 @@ jobs:
           BCRYPT_ROUNDS=10
           MAX_LOGIN_ATTEMPTS=5
           LOCKOUT_DURATION_MINUTES=15
+          ALLOW_FIRST_ADMIN=false
           EOF
 
       - name: Build and start stack
@@ -47,7 +48,7 @@ jobs:
 
       - name: Wait for health
         run: |
-          for i in {1..60}; do
+          for _ in {1..60}; do
             code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:1532/api/health || true)
             if [ "$code" = "200" ]; then
               exit 0

@@ -333,19 +333,8 @@ const initDB = async (retries = 10) => {
       ON CONFLICT DO NOTHING
     `);
 
-    const bcrypt = require('bcryptjs');
-    const userCount = await db.query('SELECT COUNT(*) as count FROM users');
-    
-    if (parseInt(userCount.rows[0].count) === 0) {
-      const passwordHash = bcrypt.hashSync('admin', 10);
-      await db.query(
-        'INSERT INTO users (username, password_hash, role) VALUES ($1, $2, $3)',
-        ['admin', passwordHash, 'admin']
-      );
-      console.log('Default admin user created: admin / admin');
-    }
-
     console.log('Database initialized successfully');
+    return;
     } catch (error) {
       console.error('Database initialization error:', error.message);
       if (i < retries - 1) {

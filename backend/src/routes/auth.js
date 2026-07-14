@@ -6,6 +6,17 @@ const { hashPassword, verifyPassword, maybeUpgradePasswordHash } = require('../u
 
 const router = express.Router();
 
+function validatePasswordStrength(password) {
+  if (typeof password !== 'string' || password.length < 8) {
+    return 'Password must be at least 8 characters';
+  }
+  const classes = [/[A-Z]/, /[a-z]/, /[0-9]/, /[!@#$%^&*(),.?":{}|<>]/]
+    .filter(pattern => pattern.test(password)).length;
+  return classes >= 3
+    ? null
+    : 'Password must contain at least 3 of: uppercase, lowercase, numbers, special characters';
+}
+
 router.get('/salt/:username', async (req, res) => {
   try {
     const { username } = req.params;
@@ -33,52 +44,48 @@ router.post('/register', async (req, res) => {
       return res.status(400).json({ error: 'Username and password are required' });
     }
 
-    if (password.length < 8) {
-      return res.status(400).json({ error: 'Password must be at least 8 characters' });
-    }
-
-    const hasUpperCase = /[A-Z]/.test(password);
-    const hasLowerCase = /[a-z]/.test(password);
-    const hasNumber = /[0-9]/.test(password);
-    const hasSpecialChar = /[!@#$%^&*(),.?":{}|<>]/.test(password);
-    
-    const strengthScore = [hasUpperCase, hasLowerCase, hasNumber, hasSpecialChar].filter(Boolean).length;
-    
-    if (strengthScore < 3) {
-      return res.status(400).json({ error: 'Password must contain at least 3 of: uppercase, lowercase, numbers, special characters' });
-    }
+    const passwordError = validatePasswordStrength(password);
+    if (passwordError) return res.status(400).json({ error: passwordError });
 
     const db = req.db;
-    const existingUser = await db.query('SELECT id FROM users WHERE username = $1', [username]);
-
-    if (existingUser.rows.length > 0) {
-      return res.status(400).json({ error: 'Username already exists' });
+    const passwordHash = await hashPassword(password);
+    const encryptionSalt = generateSalt();
+    const client = await db.pool.connect();
+    let userId;
+    let role;
+    try {
+      await client.query('BEGIN');
+      // Serialize first-user registration so two concurrent requests cannot both become admin.
+      await client.query('SELECT pg_advisory_xact_lock($1)', [731942]);
+      const existingUser = await client.query('SELECT id FROM users WHERE username = $1', [username]);
+      if (existingUser.rows.length > 0) {
+        await client.query('ROLLBACK');
+        return res.status(400).json({ error: 'Username already exists' });
+      }
+      const userCount = await client.query('SELECT COUNT(*) AS count FROM users');
+      const isFirstUser = Number(userCount.rows[0].count) === 0;
+      role = (isFirstUser && process.env.ALLOW_FIRST_ADMIN === 'true') ? 'admin' : 'user';
+      const result = await client.query(
+        'INSERT INTO users (username, password_hash, role, encryption_salt) VALUES ($1, $2, $3, $4) RETURNING id',
+        [username, passwordHash, role, encryptionSalt.toString('base64')]
+      );
+      userId = result.rows[0].id;
+      await client.query('COMMIT');
+    } catch (error) {
+      await client.query('ROLLBACK').catch(() => {});
+      throw error;
+    } finally {
+      client.release();
     }
 
-    const passwordHash = await hashPassword(password);
-    
-    // Generate unique salt for per-user encryption key derivation
-    const encryptionSalt = generateSalt();
-    
-    // First user becomes admin ONLY if ALLOW_FIRST_ADMIN is explicitly set
-    const userCount = await db.query('SELECT COUNT(*) as count FROM users');
-    const allowFirstAdmin = process.env.ALLOW_FIRST_ADMIN === 'true';
-    const isFirstUser = parseInt(userCount.rows[0].count) === 0;
-    const role = (isFirstUser && allowFirstAdmin) ? 'admin' : 'user';
-    
-    const result = await db.query(
-      'INSERT INTO users (username, password_hash, role, encryption_salt) VALUES ($1, $2, $3, $4) RETURNING id', 
-      [username, passwordHash, role, encryptionSalt.toString('base64')]
-    );
-
-    const tokens = await generateTokens({ id: result.rows[0].id, username, role }, db, {
+    const tokens = await generateTokens({ id: userId, username, role }, db, {
       ip: req.ip,
       userAgent: req.get('user-agent')
     });
     
     // Log audit
     await req.audit(AuditActions.USER_CREATED, { 
-      resource: `user:${result.rows[0].id}`,
+      resource: `user:${userId}`,
       username,
       role 
     });
@@ -86,7 +93,7 @@ router.post('/register', async (req, res) => {
     res.status(201).json({ 
       message: 'User created successfully', 
       ...tokens,
-      userId: result.rows[0].id, 
+      userId,
       username, 
       role 
     });
@@ -259,9 +266,8 @@ router.post('/users', authenticateToken, async (req, res) => {
       return res.status(400).json({ error: 'Username and password are required' });
     }
 
-    if (password.length < 8) {
-      return res.status(400).json({ error: 'Password must be at least 8 characters' });
-    }
+    const passwordError = validatePasswordStrength(password);
+    if (passwordError) return res.status(400).json({ error: passwordError });
 
     const db = req.db;
     const existingUser = await db.query('SELECT id FROM users WHERE username = $1', [username]);
@@ -320,6 +326,9 @@ router.post('/users/:id/reset-password', authenticateToken, async (req, res) => 
       return res.status(400).json({ error: 'New password is required' });
     }
 
+    const passwordError = validatePasswordStrength(newPassword);
+    if (passwordError) return res.status(400).json({ error: passwordError });
+
     const db = req.db;
     const passwordHash = await hashPassword(newPassword);
     const result = await db.query('UPDATE users SET password_hash = $1 WHERE id = $2 RETURNING id, username', [passwordHash, id]);
@@ -327,6 +336,8 @@ router.post('/users/:id/reset-password', authenticateToken, async (req, res) => 
     if (result.rows.length === 0) {
       return res.status(404).json({ error: 'User not found' });
     }
+
+    await revokeAllRefreshSessions(id, db);
 
     res.json({ message: 'Password reset successfully' });
   } catch (error) {
@@ -386,7 +397,7 @@ router.post('/users/:id/unlock', authenticateToken, async (req, res) => {
 router.put('/profile', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.id;
-    const { email, password } = req.body;
+    const { email, password, currentPassword } = req.body;
 
     const db = req.db;
 
@@ -395,8 +406,19 @@ router.put('/profile', authenticateToken, async (req, res) => {
     }
 
     if (password) {
+      const passwordError = validatePasswordStrength(password);
+      if (passwordError) return res.status(400).json({ error: passwordError });
+      if (!currentPassword) {
+        return res.status(400).json({ error: 'Current password is required' });
+      }
+      const current = await db.query('SELECT password_hash FROM users WHERE id = $1', [userId]);
+      const verification = await verifyPassword(currentPassword, current.rows[0]?.password_hash);
+      if (!verification.valid) {
+        return res.status(403).json({ error: 'Current password is incorrect' });
+      }
       const hashedPassword = await hashPassword(password);
       await db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hashedPassword, userId]);
+      await revokeAllRefreshSessions(userId, db);
     }
 
     res.json({ message: 'Profile updated successfully' });
@@ -421,20 +443,21 @@ router.post('/mfa/setup', authenticateToken, async (req, res) => {
   try {
     const db = req.db;
     const userId = req.user.id;
-    const { secret, otpauth_url } = req.body;
-
-    if (!secret || !otpauth_url) {
-      return res.status(400).json({ error: 'Secret and otpauth_url are required' });
-    }
-
     const qrcode = require('qrcode');
+    const speakeasy = require('speakeasy');
+    const generated = speakeasy.generateSecret({
+      length: 20,
+      name: `PasswordManager:${req.user.username}`,
+      issuer: 'PasswordManager'
+    });
 
-    await db.query('UPDATE users SET mfa_secret = $1 WHERE id = $2', [secret, userId]);
+    await db.query('UPDATE users SET mfa_secret = $1, mfa_enabled = 0 WHERE id = $2', [generated.base32, userId]);
 
-    const qrCodeUrl = await qrcode.toDataURL(otpauth_url);
+    const qrCodeUrl = await qrcode.toDataURL(generated.otpauth_url);
 
     res.json({
-      qrCode: qrCodeUrl
+      qrCode: qrCodeUrl,
+      secret: generated.base32
     });
   } catch (error) {
     console.error('MFA setup error:', error);
@@ -700,6 +723,9 @@ router.post('/reset-password', async (req, res) => {
       return res.status(400).json({ error: 'Username, token, and new password are required' });
     }
 
+    const passwordError = validatePasswordStrength(newPassword);
+    if (passwordError) return res.status(400).json({ error: passwordError });
+
     const db = req.db;
     const userResult = await db.query('SELECT * FROM users WHERE username = $1 AND reset_token = $2', [username, token]);
     const user = userResult.rows[0];
@@ -710,6 +736,7 @@ router.post('/reset-password', async (req, res) => {
 
     const passwordHash = await hashPassword(newPassword);
     await db.query('UPDATE users SET password_hash = $1, reset_token = NULL, reset_expires = NULL WHERE id = $2', [passwordHash, user.id]);
+    await revokeAllRefreshSessions(user.id, db);
 
     res.json({ message: 'Password reset successfully' });
   } catch (error) {

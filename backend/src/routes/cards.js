@@ -3,6 +3,7 @@ const { authenticateToken } = require('../middleware/auth');
 const { encrypt, decrypt } = require('../utils/crypto');
 const { sendNotification } = require('./settings');
 const { requireEncryptionKey } = require('../middleware/encryption-key');
+const { getTeamMembership, canManageTeamResource } = require('../utils/team-access');
 
 const router = express.Router();
 
@@ -101,7 +102,11 @@ router.post('/', async (req, res) => {
 
     let teamId = null;
     if (folder_id) {
-      const folder = await db.prepare('SELECT team_id FROM folders WHERE id = ?').get(folder_id);
+      const folder = await db.prepare(`
+        SELECT team_id FROM folders
+        WHERE id = $1 AND (user_id = $2 OR team_id IN (SELECT team_id FROM team_members WHERE user_id = $2))
+      `).get(folder_id, userId);
+      if (!folder) return res.status(403).json({ error: 'Folder access denied' });
       if (folder && folder.team_id) {
         teamId = folder.team_id;
       }
@@ -160,6 +165,11 @@ router.put('/:id', async (req, res) => {
       return res.status(404).json({ error: 'Card not found' });
     }
 
+    const membership = await getTeamMembership(db, existing.team_id, userId);
+    if (existing.user_id !== userId && !canManageTeamResource(membership)) {
+      return res.status(403).json({ error: 'Only the owner or a team administrator can update this card' });
+    }
+
     const encryptedCardNumber = card_number 
       ? (req.encryptionKey ? encrypt(card_number, req.encryptionKey) : encrypt(card_number))
       : existing.encrypted_card_number;
@@ -210,12 +220,9 @@ router.delete('/:id', async (req, res) => {
     }
 
     const isOwner = existing.user_id === userId;
-    const isTeamMember = existing.team_id && await db.prepare('SELECT 1 FROM team_members WHERE team_id = $1 AND user_id = $2').get(existing.team_id, userId);
-    const isSharedWithUser = await db.prepare('SELECT 1 FROM shared_cards WHERE card_id = $1 AND user_id = $2').get(id, userId);
-    
-    const canDelete = isOwner || isTeamMember || isSharedWithUser;
-    if (!canDelete) {
-      return res.status(403).json({ error: 'You can only delete cards from your team' });
+    const membership = await getTeamMembership(db, existing.team_id, userId);
+    if (!isOwner && !canManageTeamResource(membership)) {
+      return res.status(403).json({ error: 'Only the owner or a team administrator can delete this card' });
     }
 
     const result = await db.prepare('DELETE FROM cards WHERE id = $1').run(id);

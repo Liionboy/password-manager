@@ -32,7 +32,7 @@ export const auth = {
   resetUserPassword: (id, newPassword) => api.post(`/auth/users/${id}/reset-password`, { newPassword }),
   getProfile: () => api.get('/auth/me'),
   updateProfile: (data) => api.put('/auth/profile', data),
-  mfaSetup: (secret, otpauthUrl) => api.post('/auth/mfa/setup', { secret, otpauth_url: otpauthUrl }),
+  mfaSetup: () => api.post('/auth/mfa/setup'),
   mfaEnable: (code) => api.post('/auth/mfa/enable', { code }),
   mfaDisable: (code) => api.post('/auth/mfa/disable', { code }),
   mfaVerifyTemp: (code) => {
@@ -56,7 +56,7 @@ export const passwords = {
   delete: (id) => api.delete(`/passwords/${id}`),
   generate: (options) => api.post('/passwords/generate', options),
   export: () => api.get('/passwords/export'),
-  import: (passwords) => api.post('/passwords/import', { passwords })
+  import: (data) => api.post('/passwords/import', data)
 };
 
 export const categories = {
@@ -90,7 +90,6 @@ export const teams = {
   getAll: () => api.get('/teams'),
   getAllAdmin: () => api.get('/teams/all'),
   create: (name) => api.post('/teams', { name }),
-  join: (teamId) => api.post('/teams/join', { team_id: teamId }),
   getMembers: (teamId) => api.get(`/teams/${teamId}/members`),
   addMember: (teamId, userId, role) => api.post(`/teams/${teamId}/members`, { user_id: userId, role }),
   removeMember: (teamId, userId) => api.delete(`/teams/${teamId}/members/${userId}`),

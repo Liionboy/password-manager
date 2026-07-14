@@ -17,8 +17,7 @@ function generateBase64Secret(bytes = 32) {
   return crypto.randomBytes(bytes).toString('base64');
 }
 
-const envPath = path.join(__dirname, '..', '.env');
-const envExamplePath = path.join(__dirname, '..', '.env.example');
+const envPath = path.join(__dirname, '..', '..', '.env');
 
 // Check if .env already exists
 if (fs.existsSync(envPath)) {
@@ -41,21 +40,21 @@ const secrets = {
   // Database Configuration
   DB_HOST: 'postgres',
   DB_USER: 'postgres',
-  DB_PASSWORD: generateSecret(16),
+  PM_DB_PASSWORD: generateSecret(16),
   DB_NAME: 'passwordmanager',
   
   // Application Settings
   NODE_ENV: 'production',
   PORT: '5000',
+  BASE_URL: 'http://localhost:1532',
   
   // Security Settings
   BCRYPT_ROUNDS: '10',
   MAX_LOGIN_ATTEMPTS: '5',
   LOCKOUT_DURATION_MINUTES: '15',
   
-  // Admin Setup - Set to 'true' ONLY for initial admin creation
-  // After creating admin, change to 'false' or remove
-  ALLOW_FIRST_ADMIN: 'true',
+  // Bootstrap is opt-in. Set to true manually only for the first registration.
+  ALLOW_FIRST_ADMIN: 'false',
   
   // Optional: SMTP (configure if you want email notifications)
   // SMTP_HOST: ''

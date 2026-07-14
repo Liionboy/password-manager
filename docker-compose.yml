@@ -1,13 +1,16 @@
 services:
   backend:
+    build:
+      context: ./backend
     image: adrianbrisca/password-manager:latest
     container_name: password-manager-backend
-    ports:
-      - "5000:5000"
+    expose:
+      - "5000"
     env_file:
       - .env
     environment:
       - NODE_ENV=production
+      - DB_PASSWORD=${PM_DB_PASSWORD:?PM_DB_PASSWORD must be set}
     user: "node"
     read_only: true
     cap_drop:
@@ -24,6 +27,8 @@ services:
       - postgres
 
   frontend:
+    build:
+      context: ./frontend
     image: adrianbrisca/password-manager-frontend:latest
     container_name: password-manager-frontend
     ports:
@@ -50,7 +55,7 @@ services:
       - .env
     environment:
       - POSTGRES_USER=${DB_USER:-postgres}
-      - POSTGRES_PASSWORD=${DB_PASSWORD:-postgres}
+      - POSTGRES_PASSWORD=${PM_DB_PASSWORD:?PM_DB_PASSWORD must be set}
       - POSTGRES_DB=${DB_NAME:-passwordmanager}
     volumes:
       - pgdata:/var/lib/postgresql/data
