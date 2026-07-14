@@ -1,7 +1,7 @@
 # Security & Regression Test Matrix (Milestone 8)
 
 ## Scope
-Release target: `v2.6.0`
+Release target: `v2.6.1`
 
 This matrix defines the minimum validation set for every PR and for release preparation.
 
@@ -25,7 +25,7 @@ This matrix defines the minimum validation set for every PR and for release prep
 | MAN-04 | Restore | `scripts/test-restore.sh` with passphrase | Restore completes + health 200 |
 | MAN-05 | Hardening runtime | Inspect backend/frontend containers | non-root + readOnly + capDrop ALL + no-new-privileges |
 
-## Release Gate (v2.6.0)
+## Release Gate (v2.6.1)
 
 Release can be tagged only if:
 
