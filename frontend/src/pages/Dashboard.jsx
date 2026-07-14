@@ -236,7 +236,7 @@ function Dashboard({ token, setToken, role = 'user' }) {
   const renderFolderTree = (items, level = 0) => {
     return items.map(folder => (
       <div key={folder.id} style={{ paddingLeft: level * 15 }}>
-        <div style={{ 
+        <div className="folder-tree-row" style={{
           display: 'flex', 
           alignItems: 'center', 
           padding: '10px 12px',
@@ -255,18 +255,28 @@ function Dashboard({ token, setToken, role = 'user' }) {
             </span>
           )}
           {!folder.children?.length && <span style={{ width: '16px' }}></span>}
-          <span onClick={() => setSelectedFolder(folder.id)} style={{ flex: 1 }}>
+          <span
+            className="folder-tree-name"
+            onClick={() => setSelectedFolder(folder.id)}
+            title={folder.name}
+          >
             📁 {folder.name}
           </span>
           <button 
             onClick={() => handleEditFolderClick(folder)} 
-            style={{ padding: '4px 8px', fontSize: '10px', background: 'rgba(0, 240, 255, 0.1)', color: '#00f0ff', border: '1px solid rgba(0, 240, 255, 0.3)', borderRadius: '4px', cursor: 'pointer', marginRight: '4px' }}
+            className="folder-tree-action folder-tree-edit"
+            type="button"
+            aria-label={`Edit folder ${folder.name}`}
+            title="Edit folder"
           >
             ✏️
           </button>
           <button 
             onClick={() => handleDeleteFolder(folder.id)} 
-            style={{ padding: '4px 8px', fontSize: '10px', background: 'rgba(220, 38, 38, 0.2)', color: '#f87171', border: '1px solid rgba(220, 38, 38, 0.3)', borderRadius: '4px', cursor: 'pointer' }}
+            className="folder-tree-action folder-tree-delete"
+            type="button"
+            aria-label={`Delete folder ${folder.name}`}
+            title="Delete folder"
           >
             ✕
           </button>
@@ -725,9 +735,8 @@ function Dashboard({ token, setToken, role = 'user' }) {
         </div>
       </div>
 
-      <div style={{ display: 'flex', minHeight: 'calc(100vh - 80px)' }}>
-        <div style={{ 
-          width: '260px', 
+      <div className="dashboard-layout">
+        <div className="folder-sidebar" style={{
           background: 'rgba(17, 24, 39, 0.6)', 
           borderRight: '1px solid #1e293b',
           padding: '20px', 
@@ -735,7 +744,15 @@ function Dashboard({ token, setToken, role = 'user' }) {
         }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px' }}>
             <h3 style={{ margin: 0, color: '#00f0ff', fontSize: '14px', textTransform: 'uppercase', letterSpacing: '1px' }}>Folders</h3>
-            <button onClick={() => setShowFolderModal(true)} style={{ padding: '6px 12px', fontSize: '12px' }}>+</button>
+            <button
+              type="button"
+              className="folder-add-button"
+              onClick={() => setShowFolderModal(true)}
+              aria-label="Create folder"
+              title="Create folder"
+            >
+              +
+            </button>
           </div>
           <div 
             onClick={() => setSelectedFolder('')}
