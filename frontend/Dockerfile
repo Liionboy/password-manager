@@ -1,4 +1,4 @@
-FROM node:20-alpine AS builder
+FROM node:24-alpine3.24 AS builder
 
 WORKDIR /app
 
@@ -11,6 +11,12 @@ COPY ./ .
 RUN npm run build
 
 FROM nginxinc/nginx-unprivileged:stable-alpine
+
+USER root
+
+RUN apk upgrade --no-cache
+
+USER 101
 
 COPY --from=builder /app/dist /usr/share/nginx/html
 

@@ -61,6 +61,36 @@ jobs:
         working-directory: ${{ matrix.working-directory }}
         run: npm audit --audit-level=high
 
+  container-scan:
+    name: Container scan (${{ matrix.image }})
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - image: backend
+            context: backend
+          - image: frontend
+            context: frontend
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: docker build --pull --tag password-manager-${{ matrix.image }}:scan ./${{ matrix.context }}
+
+      - name: Scan for high and critical vulnerabilities
+        run: |
+          docker run --rm \
+            --volume /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.72.0 \
+            image \
+            --exit-code 1 \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            password-manager-${{ matrix.image }}:scan
+
   semgrep:
     name: SAST (Semgrep)
     runs-on: ubuntu-latest

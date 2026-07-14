@@ -46,25 +46,65 @@ jobs:
             type=sha,prefix=
 
       # Backend
-      - name: Build and push backend
+      - name: Build backend
         uses: docker/build-push-action@v6
         with:
           context: ./backend
-          push: true
+          load: true
           tags: ${{ steps.backend_meta.outputs.tags }}
           labels: ${{ steps.backend_meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          platforms: linux/amd64
+
+      - name: Scan backend image
+        run: |
+          docker run --rm \
+            --volume /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.72.0 \
+            image \
+            --exit-code 1 \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            adrianbrisca/password-manager:latest
+
+      - name: Push backend images
+        run: |
+          while IFS= read -r tag; do
+            if [ -n "$tag" ]; then
+              docker push "$tag"
+            fi
+          done <<'EOF'
+          ${{ steps.backend_meta.outputs.tags }}
+          EOF
 
       # Frontend
-      - name: Build and push frontend
+      - name: Build frontend
         uses: docker/build-push-action@v6
         with:
           context: ./frontend
-          push: true
+          load: true
           tags: ${{ steps.frontend_meta.outputs.tags }}
           labels: ${{ steps.frontend_meta.outputs.labels }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
-          platforms: linux/amd64
+
+      - name: Scan frontend image
+        run: |
+          docker run --rm \
+            --volume /var/run/docker.sock:/var/run/docker.sock \
+            aquasec/trivy:0.72.0 \
+            image \
+            --exit-code 1 \
+            --scanners vuln \
+            --severity HIGH,CRITICAL \
+            adrianbrisca/password-manager-frontend:latest
+
+      - name: Push frontend images
+        run: |
+          while IFS= read -r tag; do
+            if [ -n "$tag" ]; then
+              docker push "$tag"
+            fi
+          done <<'EOF'
+          ${{ steps.frontend_meta.outputs.tags }}
+          EOF
