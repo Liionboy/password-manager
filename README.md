@@ -2,7 +2,7 @@
 
 A secure, self-hosted password manager application built with React, Node.js, and PostgreSQL - all containerized with Docker.
 
-![Version](https://img.shields.io/badge/version-2.6.1-blue)
+![Version](https://img.shields.io/badge/version-2.7.0-blue)
 ![Docker](https://img.shields.io/badge/Docker-ready-blueviolet)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -33,11 +33,11 @@ docker run -d \
 
 ## ✨ Features
 
-- **Secure Authentication** - User registration and login with JWT tokens
+- **Secure Authentication** - JWT access sessions kept in memory, with refresh-session revocation in PostgreSQL
 - **Two-Factor Authentication (TOTP)** - Add an extra layer of security with authenticator apps
 - **Password Recovery** - Forgot/reset password via email
 - **Change Password** - Users can change their password from Profile page
-- **AES-256 Encryption** - All passwords and card numbers are encrypted at rest
+- **AES-256 Encryption** - Personal vault data uses per-user AES-256-GCM derived from the master password; legacy/team data remains backward-compatible
 - **Password Generator** - Customizable password generator (length, uppercase, lowercase, numbers, symbols)
 - **Password Strength Validation** - Minimum 8 characters with uppercase, lowercase, numbers, and special characters
 - **Account Lockout** - Automatic account lockout after 5 failed login attempts (15 minutes)
@@ -104,6 +104,12 @@ http://localhost:1532
 4. Login with your credentials and start adding passwords.
 
 No default administrator account or password is created.
+
+The access token and master password are kept only in browser memory; they are
+not persisted in `localStorage`. After a full page reload, sign in again to
+unlock the vault. The master password is sent only as a transient
+`X-Master-Password` header over the application connection so the backend can
+derive the per-user AES-GCM key; never expose the application over plain HTTP.
 
 ### Adding a Password
 
@@ -234,14 +240,16 @@ The following environment variables can be configured in `docker-compose.yml`:
 | Variable | Description | Default |
 |----------|-------------|---------|
 | `JWT_SECRET` | Secret key for JWT tokens | `your-super-secret-jwt-key-change-in-production` |
-| `ENCRYPTION_KEY` | 32-character key for AES-256 encryption | `32-char-encryption-key-here!!` |
+| `ENCRYPTION_KEY` | Legacy/team data key; keep stable during migrations | 32+ random characters |
 | `DB_HOST` | PostgreSQL host | `postgres` |
 | `DB_USER` | PostgreSQL user | `postgres` |
 | `DB_PASSWORD` | PostgreSQL password | `postgres` |
 | `DB_NAME` | PostgreSQL database name | `passwordmanager` |
 | `BASE_URL` | Base URL for password reset links | `http://localhost:5173` |
 
-> **Security Note:** Change the default `JWT_SECRET` and `ENCRYPTION_KEY` values in production!
+> **Security Note:** Generate unique random `JWT_SECRET`, `REFRESH_SECRET`, and
+> `ENCRYPTION_KEY` values in production. Keep `ENCRYPTION_KEY` stable so old
+> and team-shared records remain decryptable.
 
 ### Optional Argon2 tuning (backend)
 

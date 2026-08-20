@@ -4,10 +4,7 @@ const { deriveKey } = require('../utils/crypto-per-user');
  * Middleware to derive user's encryption key from their master password
  * 
  * The client must send the master password in the X-Master-Password header
- * (encrypted with the server's public key in production, or plain in dev)
- * 
- * For better security, the key derivation should happen client-side and only
- * the derived key should be sent (encrypted with TLS).
+ * over HTTPS. The derived key is kept only on the request and is never stored.
  */
 function requireEncryptionKey(req, res, next) {
   try {
@@ -25,20 +22,17 @@ function requireEncryptionKey(req, res, next) {
       const user = result.rows[0];
       
       if (!user.encryption_salt) {
-        // Legacy mode - user was created before per-user encryption
-        return res.status(400).json({ 
-          error: 'User does not have encryption salt. Please re-create your account or contact admin.' 
-        });
+        // Legacy users can still read legacy ciphertext. New registrations
+        // always get a salt and therefore use per-user encryption below.
+        return next();
       }
       
-      // Get the master password from header (in production, this should be encrypted)
       const masterPasswordHeader = req.headers['x-master-password'];
       
       if (!masterPasswordHeader) {
         return res.status(400).json({ 
           error: 'Master password required',
-          requiresEncryptionKey: true,
-          salt: user.encryption_salt
+          requiresEncryptionKey: true
         });
       }
       

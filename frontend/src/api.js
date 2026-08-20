@@ -1,6 +1,23 @@
 import axios from 'axios';
 
 const API_URL = '/api';
+let masterPassword = '';
+let accessToken = '';
+let refreshToken = '';
+
+export const setAccessToken = (token) => {
+  accessToken = token || '';
+};
+
+export const setRefreshToken = (token) => {
+  refreshToken = token || '';
+};
+
+export const getRefreshToken = () => refreshToken;
+
+export const setMasterPassword = (password) => {
+  masterPassword = password || '';
+};
 
 const api = axios.create({
   baseURL: API_URL,
@@ -10,12 +27,11 @@ const api = axios.create({
 });
 
 api.interceptors.request.use((config) => {
-  let token = localStorage.getItem('token');
-  if (!token) {
-    token = localStorage.getItem('tempToken');
+  if (accessToken) {
+    config.headers.Authorization = `Bearer ${accessToken}`;
   }
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`;
+  if (masterPassword) {
+    config.headers['X-Master-Password'] = masterPassword;
   }
   return config;
 });
@@ -35,13 +51,12 @@ export const auth = {
   mfaSetup: () => api.post('/auth/mfa/setup'),
   mfaEnable: (code) => api.post('/auth/mfa/enable', { code }),
   mfaDisable: (code) => api.post('/auth/mfa/disable', { code }),
-  mfaVerifyTemp: (code) => {
-    const tempToken = localStorage.getItem('tempToken');
+  mfaVerifyTemp: (code, tempToken) => {
     return api.post('/auth/mfa/verify-temp', { tempToken, code });
   },
   getSessions: () => api.get('/auth/sessions'),
   revokeSession: (id) => api.post(`/auth/sessions/${id}/revoke`),
-  revokeOtherSessions: (refreshToken) => api.post('/auth/sessions/revoke-others', { refreshToken }),
+  revokeOtherSessions: (token = refreshToken) => api.post('/auth/sessions/revoke-others', { refreshToken: token }),
   forgotPassword: (username) => api.post('/auth/forgot-password', JSON.stringify({ username }), { headers: { 'Content-Type': 'application/json' } }),
   resetPassword: (data) => api.post('/auth/reset-password', JSON.stringify(data), { headers: { 'Content-Type': 'application/json' } })
 };

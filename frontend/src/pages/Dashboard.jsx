@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { passwords, categories, cards, notes, emergency, folders as foldersApi, teams, auth } from '../api';
+import { passwords, categories, cards, notes, emergency, folders as foldersApi, teams, auth, setMasterPassword, setRefreshToken, getRefreshToken } from '../api';
 
 function Dashboard({ token, setToken, role = 'user' }) {
   const isAdmin = String(role || localStorage.getItem('role') || 'user').toLowerCase() === 'admin';
@@ -495,7 +495,9 @@ function Dashboard({ token, setToken, role = 'user' }) {
   };
 
   const handleLogout = () => {
-    localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
+    setMasterPassword('');
+    setRefreshToken('');
     setToken(null);
   };
 
@@ -504,7 +506,7 @@ function Dashboard({ token, setToken, role = 'user' }) {
       const response = await auth.getProfile();
       setProfileData({ email: response.data.email || '', mfa_enabled: response.data.mfa_enabled || false });
 
-      const refreshToken = localStorage.getItem('refreshToken');
+      const refreshToken = getRefreshToken();
       if (refreshToken) {
         try {
           const payload = JSON.parse(atob(refreshToken.split('.')[1]));
@@ -551,7 +553,7 @@ function Dashboard({ token, setToken, role = 'user' }) {
   const handleRevokeOthers = async () => {
     if (!window.confirm('Revoke all sessions except current device?')) return;
     try {
-      const refreshToken = localStorage.getItem('refreshToken');
+      const refreshToken = getRefreshToken();
       await auth.revokeOtherSessions(refreshToken);
       showNotification('All other sessions revoked!');
       await loadProfile();

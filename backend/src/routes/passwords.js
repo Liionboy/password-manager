@@ -9,8 +9,7 @@ const router = express.Router();
 
 router.use(authenticateToken);
 
-// Optional: uncomment to enable per-user encryption
-// router.use(requireEncryptionKey);
+router.use(requireEncryptionKey);
 
 router.get('/health', async (req, res) => {
   try {
@@ -18,7 +17,7 @@ router.get('/health', async (req, res) => {
     const userId = req.user.id;
 
     const entries = await db.prepare(`
-      SELECT p.id, p.title, p.username, p.encrypted_password, p.updated_at, p.created_at
+      SELECT p.id, p.title, p.username, p.encrypted_password, p.team_id, p.updated_at, p.created_at
       FROM passwords p
       LEFT JOIN users u ON p.user_id = u.id
       WHERE (p.user_id = $1
@@ -47,7 +46,8 @@ router.get('/health', async (req, res) => {
     for (const item of entries) {
       let decryptedPassword = null;
       try {
-        decryptedPassword = req.encryptionKey
+        decryptedPassword = item.team_id ? decrypt(item.encrypted_password)
+          : req.encryptionKey
           ? decrypt(item.encrypted_password, req.encryptionKey)
           : decrypt(item.encrypted_password);
       } catch (e) {
@@ -171,7 +171,7 @@ router.get('/', async (req, res) => {
       // Try per-user decryption first, fall back to legacy
       try {
         if (req.encryptionKey) {
-          return { ...p, password: decrypt(p.encrypted_password, req.encryptionKey) };
+          return { ...p, password: p.team_id ? decrypt(p.encrypted_password) : decrypt(p.encrypted_password, req.encryptionKey) };
         }
         return { ...p, password: decrypt(p.encrypted_password) };
       } catch (e) {
@@ -215,7 +215,8 @@ router.get('/:id/history', async (req, res) => {
       try {
         return {
           ...v,
-          password: req.encryptionKey
+          password: existing.team_id ? decrypt(v.encrypted_password)
+            : req.encryptionKey
             ? decrypt(v.encrypted_password, req.encryptionKey)
             : decrypt(v.encrypted_password)
         };
@@ -329,7 +330,7 @@ router.post('/', async (req, res) => {
       }
     }
 
-    const encryptedPassword = req.encryptionKey 
+    const encryptedPassword = teamId ? encrypt(password) : req.encryptionKey
       ? encrypt(password, req.encryptionKey)
       : encrypt(password);
     const folder = folder_id ? await db.prepare('SELECT name FROM folders WHERE id = ?').get(folder_id) : null;
@@ -397,7 +398,7 @@ router.put('/:id', async (req, res) => {
     );
 
     const encryptedPassword = password 
-      ? (req.encryptionKey ? encrypt(password, req.encryptionKey) : encrypt(password))
+      ? (existing.team_id ? encrypt(password) : req.encryptionKey ? encrypt(password, req.encryptionKey) : encrypt(password))
       : existing.encrypted_password;
 
     await db.prepare(`

@@ -10,17 +10,19 @@ import CardForm from './pages/CardForm';
 import Settings from './pages/Settings';
 import Team from './pages/Team';
 import TeamManagement from './pages/TeamManagement';
+import { setAccessToken, setMasterPassword } from './api';
 
 function App() {
-  const [token, setToken] = useState(localStorage.getItem('token'));
+  const [token, setToken] = useState(null);
   const [role, setRole] = useState(localStorage.getItem('role') || 'user');
 
   useEffect(() => {
     if (token) {
-      localStorage.setItem('token', token);
+      setAccessToken(token);
     } else {
-      localStorage.removeItem('token');
       localStorage.removeItem('role');
+      setAccessToken('');
+      setMasterPassword('');
     }
   }, [token]);
 

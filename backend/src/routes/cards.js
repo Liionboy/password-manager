@@ -9,8 +9,7 @@ const router = express.Router();
 
 router.use(authenticateToken);
 
-// Optional: uncomment to enable per-user encryption
-// router.use(requireEncryptionKey);
+router.use(requireEncryptionKey);
 
 router.get('/', async (req, res) => {
   try {
@@ -62,10 +61,11 @@ router.get('/', async (req, res) => {
 
     const decrypted = cards.map(card => {
       try {
-        const decryptedNumber = req.encryptionKey 
+        const decryptedNumber = card.team_id ? decrypt(card.encrypted_card_number) : req.encryptionKey
           ? decrypt(card.encrypted_card_number, req.encryptionKey)
           : decrypt(card.encrypted_card_number);
-        const decryptedCvv = card.cvv && req.encryptionKey
+        const decryptedCvv = card.cvv && card.team_id ? decrypt(card.cvv)
+          : card.cvv && req.encryptionKey
           ? decrypt(card.cvv, req.encryptionKey)
           : (card.cvv ? decrypt(card.cvv) : null);
         return {
@@ -112,11 +112,11 @@ router.post('/', async (req, res) => {
       }
     }
 
-    const encryptedCardNumber = req.encryptionKey 
+    const encryptedCardNumber = teamId ? encrypt(card_number) : req.encryptionKey
       ? encrypt(card_number, req.encryptionKey)
       : encrypt(card_number);
     const encryptedCvv = cvv 
-      ? (req.encryptionKey ? encrypt(cvv, req.encryptionKey) : encrypt(cvv))
+      ? (teamId ? encrypt(cvv) : req.encryptionKey ? encrypt(cvv, req.encryptionKey) : encrypt(cvv))
       : null;
     const folder = folder_id ? await db.prepare('SELECT name FROM folders WHERE id = ?').get(folder_id) : null;
     const folderInfo = folder ? ` in folder "${folder.name}"` : '';
@@ -171,10 +171,10 @@ router.put('/:id', async (req, res) => {
     }
 
     const encryptedCardNumber = card_number 
-      ? (req.encryptionKey ? encrypt(card_number, req.encryptionKey) : encrypt(card_number))
+      ? (existing.team_id ? encrypt(card_number) : req.encryptionKey ? encrypt(card_number, req.encryptionKey) : encrypt(card_number))
       : existing.encrypted_card_number;
     const encryptedCvv = cvv 
-      ? (req.encryptionKey ? encrypt(cvv, req.encryptionKey) : encrypt(cvv))
+      ? (existing.team_id ? encrypt(cvv) : req.encryptionKey ? encrypt(cvv, req.encryptionKey) : encrypt(cvv))
       : existing.cvv;
 
     await db.prepare(`

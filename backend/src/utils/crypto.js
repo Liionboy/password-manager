@@ -67,7 +67,9 @@ function decrypt(ciphertext, userKey) {
   // New format: iv:encryptedHex (AES-256-CBC with PBKDF2-derived key)
   if (ciphertext.includes(':')) {
     const [ivHex, encryptedHex] = ciphertext.split(':');
-    const passphrase = userKey || ENCRYPTION_KEY;
+    // Legacy/team ciphertext is still encrypted with the global key. A
+    // per-user Buffer must never be coerced into a passphrase.
+    const passphrase = Buffer.isBuffer(userKey) ? ENCRYPTION_KEY : (userKey || ENCRYPTION_KEY);
     const key = deriveLegacyKey(passphrase);
     const iv = Buffer.from(ivHex, 'hex');
     const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
@@ -79,7 +81,7 @@ function decrypt(ciphertext, userKey) {
   // Old format: CryptoJS-style (backward compatibility - will be deprecated)
   // Import CryptoJS only for legacy decryption
   const CryptoJS = require('crypto-js');
-  const bytes = CryptoJS.AES.decrypt(ciphertext, userKey || ENCRYPTION_KEY);
+  const bytes = CryptoJS.AES.decrypt(ciphertext, Buffer.isBuffer(userKey) ? ENCRYPTION_KEY : (userKey || ENCRYPTION_KEY));
   return bytes.toString(CryptoJS.enc.Utf8);
 }
 

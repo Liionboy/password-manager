@@ -1,9 +1,11 @@
 const express = require('express');
 const { authenticateToken } = require('../middleware/auth');
 const { encrypt, decrypt } = require('../utils/crypto');
+const { requireEncryptionKey } = require('../middleware/encryption-key');
 
 const router = express.Router();
 router.use(authenticateToken);
+router.use(requireEncryptionKey);
 
 router.get('/', async (req, res) => {
   try {

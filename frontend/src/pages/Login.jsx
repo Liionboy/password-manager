@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { auth } from '../api';
+import { auth, setAccessToken, setMasterPassword, setRefreshToken } from '../api';
 
 function Login({ setToken, setRole }) {
   const [username, setUsername] = useState('');
@@ -20,13 +20,14 @@ function Login({ setToken, setRole }) {
       if (response.data.mfaRequired) {
         setMfaRequired(true);
         setTempToken(response.data.tempToken);
-        localStorage.setItem('tempToken', response.data.tempToken);
       } else {
-        localStorage.setItem('token', response.data.accessToken); localStorage.setItem('refreshToken', response.data.refreshToken);
         localStorage.setItem('role', response.data.role || 'user');
         localStorage.setItem('username', username);
         localStorage.setItem('userId', response.data.userId);
         setToken(response.data.accessToken);
+        setAccessToken(response.data.accessToken);
+        setRefreshToken(response.data.refreshToken);
+        setMasterPassword(password);
         if (setRole) setRole(response.data.role || 'user');
       }
     } catch (err) {
@@ -39,13 +40,14 @@ function Login({ setToken, setRole }) {
     setError('');
 
     try {
-      const response = await auth.mfaVerifyTemp(mfaCode);
-      localStorage.removeItem('tempToken');
-      localStorage.setItem('token', response.data.accessToken); localStorage.setItem('refreshToken', response.data.refreshToken);
+      const response = await auth.mfaVerifyTemp(mfaCode, tempToken);
       localStorage.setItem('role', response.data.role || 'user');
       localStorage.setItem('username', username);
       localStorage.setItem('userId', response.data.userId);
       setToken(response.data.accessToken);
+      setAccessToken(response.data.accessToken);
+      setRefreshToken(response.data.refreshToken);
+      setMasterPassword(password);
       if (setRole) setRole(response.data.role || 'user');
     } catch (err) {
       setError(err.response?.data?.error || 'MFA verification failed');

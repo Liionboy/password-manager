@@ -2,9 +2,68 @@ const express = require('express');
 const { authenticateToken, generateTokens, generateTempToken, refreshAccessToken, revokeAllRefreshSessions, REFRESH_SECRET } = require('../middleware/auth');
 const { AuditActions } = require('../middleware/audit');
 const { generateSalt } = require('../utils/crypto-per-user');
+const { deriveKey } = require('../utils/crypto-per-user');
+const { encrypt, decrypt } = require('../utils/crypto');
 const { hashPassword, verifyPassword, maybeUpgradePasswordHash } = require('../utils/password-hash');
 
 const router = express.Router();
+
+async function reencryptPersonalVault(db, userId, currentPassword, nextPassword) {
+  const user = (await db.query('SELECT encryption_salt FROM users WHERE id = $1', [userId])).rows[0];
+  if (!user?.encryption_salt) return; // Legacy users keep the global-key format.
+  const salt = Buffer.from(user.encryption_salt, 'base64');
+  const oldKey = deriveKey(currentPassword, salt);
+  const newKey = deriveKey(nextPassword, salt);
+  const client = await db.pool.connect();
+  try {
+    await client.query('BEGIN');
+    const personalPasswords = await client.query(
+      'SELECT id, encrypted_password FROM passwords WHERE user_id = $1 AND team_id IS NULL', [userId]
+    );
+    for (const row of personalPasswords.rows) {
+      const plaintext = decrypt(row.encrypted_password, oldKey);
+      await client.query('UPDATE passwords SET encrypted_password = $1 WHERE id = $2',
+        [encrypt(plaintext, newKey), row.id]);
+    }
+
+    const personalHistory = await client.query(
+      `SELECT ph.id, ph.encrypted_password
+       FROM password_history ph
+       JOIN passwords p ON p.id = ph.password_id
+       WHERE p.user_id = $1 AND p.team_id IS NULL`, [userId]
+    );
+    for (const row of personalHistory.rows) {
+      const plaintext = decrypt(row.encrypted_password, oldKey);
+      await client.query('UPDATE password_history SET encrypted_password = $1 WHERE id = $2',
+        [encrypt(plaintext, newKey), row.id]);
+    }
+
+    const personalCards = await client.query(
+      'SELECT id, encrypted_card_number, cvv FROM cards WHERE user_id = $1 AND team_id IS NULL', [userId]
+    );
+    for (const row of personalCards.rows) {
+      const cardNumber = decrypt(row.encrypted_card_number, oldKey);
+      const cvv = row.cvv ? decrypt(row.cvv, oldKey) : null;
+      await client.query('UPDATE cards SET encrypted_card_number = $1, cvv = $2 WHERE id = $3',
+        [encrypt(cardNumber, newKey), cvv ? encrypt(cvv, newKey) : null, row.id]);
+    }
+
+    const personalNotes = await client.query(
+      'SELECT id, encrypted_content FROM secure_notes WHERE user_id = $1', [userId]
+    );
+    for (const row of personalNotes.rows) {
+      const plaintext = decrypt(row.encrypted_content, oldKey);
+      await client.query('UPDATE secure_notes SET encrypted_content = $1 WHERE id = $2',
+        [encrypt(plaintext, newKey), row.id]);
+    }
+    await client.query('COMMIT');
+  } catch (error) {
+    await client.query('ROLLBACK').catch(() => {});
+    throw error;
+  } finally {
+    client.release();
+  }
+}
 
 function validatePasswordStrength(password) {
   if (typeof password !== 'string' || password.length < 8) {
@@ -415,6 +474,12 @@ router.put('/profile', authenticateToken, async (req, res) => {
       const verification = await verifyPassword(currentPassword, current.rows[0]?.password_hash);
       if (!verification.valid) {
         return res.status(403).json({ error: 'Current password is incorrect' });
+      }
+      try {
+        await reencryptPersonalVault(db, userId, currentPassword, password);
+      } catch (error) {
+        console.error('Vault re-encryption failed during password change:', error.message);
+        return res.status(500).json({ error: 'Password change aborted: vault data could not be re-encrypted' });
       }
       const hashedPassword = await hashPassword(password);
       await db.query('UPDATE users SET password_hash = $1 WHERE id = $2', [hashedPassword, userId]);

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { auth } from '../api';
+import { auth, setAccessToken, setMasterPassword, setRefreshToken } from '../api';
 
 function Register({ setToken, setRole }) {
   const [username, setUsername] = useState('');
@@ -17,16 +17,18 @@ function Register({ setToken, setRole }) {
       return;
     }
 
-    if (password.length < 4) {
-      setError('Password must be at least 4 characters');
+    if (password.length < 8) {
+      setError('Password must be at least 8 characters');
       return;
     }
 
     try {
       const response = await auth.register(username, password);
-      localStorage.setItem('token', response.data.accessToken); localStorage.setItem('refreshToken', response.data.refreshToken);
       localStorage.setItem('role', response.data.role || 'user');
       setToken(response.data.accessToken);
+      setAccessToken(response.data.accessToken);
+      setRefreshToken(response.data.refreshToken);
+      setMasterPassword(password);
       if (setRole) setRole(response.data.role || 'user');
     } catch (err) {
       setError(err.response?.data?.error || 'Registration failed');
