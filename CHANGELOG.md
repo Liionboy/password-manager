@@ -5,6 +5,11 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.1] - 2026-09-02
+
+### Security
+- Upgrade Alpine runtime packages to include the fix for CVE-2026-14456.
+
 ## [2.7.0] - 2026-08-21
 
 ### Added
