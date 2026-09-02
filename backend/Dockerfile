@@ -14,6 +14,7 @@ FROM alpine:${ALPINE_VERSION}
 WORKDIR /app
 
 RUN apk add --no-cache dumb-init libstdc++ \
+  && apk upgrade --no-cache \
   && addgroup -g 1000 node \
   && adduser -u 1000 -G node -s /bin/sh -D node \
   && mkdir -p /app/data \
