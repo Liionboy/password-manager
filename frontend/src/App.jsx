@@ -11,6 +11,7 @@ import Settings from './pages/Settings';
 import Team from './pages/Team';
 import TeamManagement from './pages/TeamManagement';
 import { setAccessToken, setMasterPassword } from './api';
+import { ConfirmProvider } from './components/ConfirmDialog';
 
 function App() {
   const [token, setToken] = useState(null);
@@ -27,8 +28,9 @@ function App() {
   }, [token]);
 
   return (
-    <BrowserRouter>
-      <Routes>
+    <ConfirmProvider>
+      <BrowserRouter>
+        <Routes>
         <Route path="/login" element={!token ? <Login setToken={setToken} setRole={setRole} /> : <Navigate to="/" />} />
         <Route path="/register" element={!token ? <Register setToken={setToken} setRole={setRole} /> : <Navigate to="/" />} />
         <Route path="/forgot-password" element={!token ? <ForgotPassword /> : <Navigate to="/" />} />
@@ -41,8 +43,9 @@ function App() {
         <Route path="/settings" element={token && role === 'admin' ? <Settings token={token} /> : <Navigate to="/" />} />
         <Route path="/team" element={token && role === 'admin' ? <Team token={token} /> : <Navigate to="/" />} />
         <Route path="/teams" element={token ? <TeamManagement token={token} /> : <Navigate to="/login" />} />
-      </Routes>
-    </BrowserRouter>
+        </Routes>
+      </BrowserRouter>
+    </ConfirmProvider>
   );
 }
 

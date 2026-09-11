@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { auth } from '../api';
+import { useConfirm } from '../components/ConfirmDialog';
 
 function Team({ token }) {
   const navigate = useNavigate();
@@ -12,6 +13,7 @@ function Team({ token }) {
   const [editRole, setEditRole] = useState('');
   const [resetPasswordUser, setResetPasswordUser] = useState(null);
   const [newPassword, setNewPassword] = useState('');
+  const confirm = useConfirm();
 
   useEffect(() => {
     loadUsers();
@@ -46,27 +48,35 @@ function Team({ token }) {
     const userToDelete = users.find(u => u.id === id);
     
     if (userToDelete?.username === currentUsername) {
-      alert('You cannot delete your own account!');
+      setError('You cannot delete your own account!');
       return;
     }
     
-    if (!window.confirm('Are you sure you want to delete this user?')) return;
+    if (!(await confirm({
+      title: 'Delete user?',
+      message: 'This user and their vault data will be permanently removed.',
+      confirmLabel: 'Delete user'
+    }))) return;
     
     try {
       await auth.deleteUser(id);
       loadUsers();
     } catch (err) {
-      alert(err.response?.data?.error || 'Error deleting user');
+      setError(err.response?.data?.error || 'Error deleting user');
     }
   };
 
   const handleUnlockUser = async (id) => {
-    if (!window.confirm('Unlock this user?')) return;
+    if (!(await confirm({
+      title: 'Unlock user?',
+      message: 'This user will be allowed to sign in again.',
+      confirmLabel: 'Unlock user'
+    }))) return;
     try {
       await auth.unlockUser(id);
       loadUsers();
     } catch (err) {
-      alert(err.response?.data?.error || 'Error unlocking user');
+      setError(err.response?.data?.error || 'Error unlocking user');
     }
   };
 

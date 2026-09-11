@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { cards, categories } from '../api';
+import { useConfirm } from '../components/ConfirmDialog';
 
 function CardForm({ token }) {
   const { id } = useParams();
@@ -22,6 +23,7 @@ function CardForm({ token }) {
   const [showCvv, setShowCvv] = useState(false);
   const [newCategory, setNewCategory] = useState('');
   const [error, setError] = useState('');
+  const confirm = useConfirm();
 
   useEffect(() => {
     loadCategories();
@@ -127,7 +129,23 @@ function CardForm({ token }) {
       setNewCategory('');
       loadCategories();
     } catch (err) {
-      alert(err.response?.data?.error || 'Error creating category');
+      setError(err.response?.data?.error || 'Error creating category');
+    }
+  };
+
+  const handleDeleteCategory = async () => {
+    if (!(await confirm({
+      title: 'Delete category?',
+      message: 'Cards in this category will remain in your vault.',
+      confirmLabel: 'Delete category'
+    }))) return;
+
+    try {
+      await categories.delete(formData.category_id);
+      setFormData({ ...formData, category_id: '' });
+      loadCategories();
+    } catch (err) {
+      setError(err.response?.data?.error || 'Error deleting category');
     }
   };
 
@@ -233,7 +251,7 @@ function CardForm({ token }) {
                 ))}
               </select>
               {formData.category_id && (
-                <button type="button" onClick={() => { if (window.confirm('Delete this category?')) { categories.delete(formData.category_id).then(() => { setFormData({ ...formData, category_id: '' }); loadCategories(); }).catch(err => alert(err.response?.data?.error || 'Error deleting category')); } }} className="danger" style={{ padding: '8px 12px' }}>X</button>
+                <button type="button" onClick={handleDeleteCategory} className="danger" style={{ padding: '8px 12px' }}>X</button>
               )}
               <input
                 type="text"

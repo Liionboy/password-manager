@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { passwords, categories, cards, notes, emergency, folders as foldersApi, teams, auth, setMasterPassword, setRefreshToken, getRefreshToken } from '../api';
+import { useConfirm } from '../components/ConfirmDialog';
 
 function Dashboard({ token, setToken, role = 'user' }) {
   const isAdmin = String(role || localStorage.getItem('role') || 'user').toLowerCase() === 'admin';
@@ -51,6 +52,7 @@ function Dashboard({ token, setToken, role = 'user' }) {
   const [commandQuery, setCommandQuery] = useState('');
   const [theme, setTheme] = useState(() => localStorage.getItem('uiTheme') || 'nord-frost');
   const navigate = useNavigate();
+  const confirm = useConfirm();
 
   const themeOptions = [
     { value: 'nord-frost', label: 'Nord Frost' },
@@ -191,7 +193,11 @@ function Dashboard({ token, setToken, role = 'user' }) {
   };
 
   const handleDeleteFolder = async (id) => {
-    if (!window.confirm('Delete this folder? Items inside will be moved to root.')) return;
+    if (!(await confirm({
+      title: 'Delete folder?',
+      message: 'Items inside will be moved to the root folder.',
+      confirmLabel: 'Delete folder'
+    }))) return;
     try {
       await foldersApi.delete(id);
       if (selectedFolder === id) setSelectedFolder('');
@@ -289,7 +295,11 @@ function Dashboard({ token, setToken, role = 'user' }) {
   };
 
   const handleDeletePassword = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this password?')) return;
+    if (!(await confirm({
+      title: 'Delete password?',
+      message: 'This password will be permanently removed from your vault.',
+      confirmLabel: 'Delete password'
+    }))) return;
     
     try {
       await passwords.delete(id);
@@ -300,7 +310,11 @@ function Dashboard({ token, setToken, role = 'user' }) {
   };
 
   const handleDeleteCard = async (id) => {
-    if (!window.confirm('Are you sure you want to delete this card?')) return;
+    if (!(await confirm({
+      title: 'Delete card?',
+      message: 'This card will be permanently removed from your vault.',
+      confirmLabel: 'Delete card'
+    }))) return;
     
     try {
       await cards.delete(id);
@@ -347,7 +361,11 @@ function Dashboard({ token, setToken, role = 'user' }) {
   };
 
   const handleDeleteNote = async (id) => {
-    if (!window.confirm('Delete this note?')) return;
+    if (!(await confirm({
+      title: 'Delete secure note?',
+      message: 'This note will be permanently removed from your vault.',
+      confirmLabel: 'Delete note'
+    }))) return;
     try {
       await notes.delete(id);
       showNotification('Note deleted successfully!');
@@ -432,7 +450,11 @@ function Dashboard({ token, setToken, role = 'user' }) {
 
   const handleRestoreHistory = async (historyId) => {
     if (!selectedPasswordForHistory) return;
-    if (!window.confirm('Restore this version? Current version will be saved in history.')) return;
+    if (!(await confirm({
+      title: 'Restore this version?',
+      message: 'The current password will be saved in history before restoring this version.',
+      confirmLabel: 'Restore version'
+    }))) return;
 
     try {
       await passwords.restoreHistory(selectedPasswordForHistory.id, historyId);
@@ -540,7 +562,11 @@ function Dashboard({ token, setToken, role = 'user' }) {
   };
 
   const handleRevokeSession = async (sessionId) => {
-    if (!window.confirm('Revoke this session?')) return;
+    if (!(await confirm({
+      title: 'Revoke session?',
+      message: 'This device will be signed out immediately.',
+      confirmLabel: 'Revoke session'
+    }))) return;
     try {
       await auth.revokeSession(sessionId);
       showNotification('Session revoked successfully!');
@@ -551,7 +577,11 @@ function Dashboard({ token, setToken, role = 'user' }) {
   };
 
   const handleRevokeOthers = async () => {
-    if (!window.confirm('Revoke all sessions except current device?')) return;
+    if (!(await confirm({
+      title: 'Revoke other sessions?',
+      message: 'Every other device will be signed out immediately.',
+      confirmLabel: 'Revoke sessions'
+    }))) return;
     try {
       const refreshToken = getRefreshToken();
       await auth.revokeOtherSessions(refreshToken);
@@ -656,7 +686,11 @@ function Dashboard({ token, setToken, role = 'user' }) {
   };
 
   const handleMfaDisable = async () => {
-    if (!window.confirm('Are you sure you want to disable MFA?')) return;
+    if (!(await confirm({
+      title: 'Disable MFA?',
+      message: 'Multi-factor authentication will be disabled for your account.',
+      confirmLabel: 'Disable MFA'
+    }))) return;
     try {
       await auth.mfaDisable(mfaCode);
       showNotification('MFA disabled successfully!');

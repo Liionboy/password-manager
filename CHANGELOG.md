@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.0] - 2026-09-11
+
+### Added
+
+- Add server-side SMTP configuration through `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`,
+  `SMTP_PASS`, and `SMTP_FROM` environment variables.
+- Add themed confirmation dialogs for destructive and security-sensitive actions.
+
+### Fixed
+
+- Reuse saved server-side SMTP credentials for test emails instead of sending the
+  masked password value from the browser.
+
 ## [2.7.2] - 2026-09-11
 
 ### Security
