@@ -327,10 +327,17 @@ const initDB = async (retries = 10) => {
       CREATE INDEX IF NOT EXISTS idx_audit_logs_created_at ON audit_logs(created_at);
     `);
 
+    // Keep one empty global settings row for the admin UI without creating a
+    // new duplicate on every container restart. Existing duplicate rows are
+    // intentionally preserved; notification lookup ignores incomplete rows.
     await db.query(`
-      INSERT INTO settings (user_id, is_global) 
-      VALUES (NULL, 1) 
-      ON CONFLICT DO NOTHING
+      DO $$
+      BEGIN
+        PERFORM pg_advisory_xact_lock(7319421);
+        IF NOT EXISTS (SELECT 1 FROM settings WHERE is_global = 1) THEN
+          INSERT INTO settings (user_id, is_global) VALUES (NULL, 1);
+        END IF;
+      END $$;
     `);
 
     console.log('Database initialized successfully');
