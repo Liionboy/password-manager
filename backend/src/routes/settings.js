@@ -167,6 +167,8 @@ router.put('/', async (req, res) => {
     const db = req.db;
     const userId = req.user.id;
     const { smtp_host, smtp_port, smtp_user, smtp_password, smtp_from, notify_on_add, notify_on_update, notify_on_delete, is_global } = req.body;
+    const hasOwn = (key) => Object.prototype.hasOwnProperty.call(req.body, key);
+    const hasSmtpFields = ['smtp_host', 'smtp_port', 'smtp_user', 'smtp_password', 'smtp_from'].some(hasOwn);
 
     if (req.user.role !== 'admin' && is_global) {
       return res.status(403).json({ error: 'Only admin can save global settings' });
@@ -197,25 +199,57 @@ router.put('/', async (req, res) => {
     const existing = await db.prepare('SELECT * FROM settings WHERE user_id = ?').get(userId);
 
     if (existing) {
-      let updateSql = `UPDATE settings SET 
-        smtp_host = $1, smtp_port = $2, smtp_user = $3, smtp_from = $4, 
-        notify_on_add = $5, notify_on_update = $6, notify_on_delete = $7`;
-      let params = [smtp_host, smtp_port, smtp_user, smtp_from, notify_on_add ? 1 : 0, notify_on_update ? 1 : 0, notify_on_delete ? 1 : 0];
+      const updates = [];
+      const params = [];
+      const addParam = (value) => {
+        params.push(value);
+        return `$${params.length}`;
+      };
 
-      if (smtp_password && smtp_password !== '***hidden***') {
-        updateSql += ', smtp_password = $8 WHERE user_id = $9';
-        params.push(smtp_password, userId);
-      } else {
-        updateSql += ' WHERE user_id = $8';
-        params.push(userId);
+      // SMTP is normally managed by the server environment. Only update
+      // database SMTP columns when an older/API client explicitly sends them;
+      // saving notification preferences must never erase the stored config.
+      if (hasSmtpFields) {
+        if (hasOwn('smtp_host')) updates.push(`smtp_host = ${addParam(smtp_host)}`);
+        if (hasOwn('smtp_port')) updates.push(`smtp_port = ${addParam(smtp_port)}`);
+        if (hasOwn('smtp_user')) updates.push(`smtp_user = ${addParam(smtp_user)}`);
+        if (hasOwn('smtp_from')) updates.push(`smtp_from = ${addParam(smtp_from)}`);
+        if (hasOwn('smtp_password') && smtp_password && smtp_password !== MASKED_SMTP_PASSWORD) {
+          updates.push(`smtp_password = ${addParam(smtp_password)}`);
+        }
       }
 
-      await db.prepare(updateSql).run(...params);
+      updates.push(`notify_on_add = ${addParam(notify_on_add ? 1 : 0)}`);
+      updates.push(`notify_on_update = ${addParam(notify_on_update ? 1 : 0)}`);
+      updates.push(`notify_on_delete = ${addParam(notify_on_delete ? 1 : 0)}`);
+      params.push(userId);
+
+      await db.prepare(`UPDATE settings SET ${updates.join(', ')} WHERE user_id = $${params.length}`).run(...params);
     } else {
-      await db.prepare(`INSERT INTO settings (user_id, smtp_host, smtp_port, smtp_user, smtp_password, smtp_from, notify_on_add, notify_on_update, notify_on_delete)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)`).run(
-        userId, smtp_host, smtp_port, smtp_user, smtp_password, smtp_from, notify_on_add ? 1 : 0, notify_on_update ? 1 : 0, notify_on_delete ? 1 : 0
-      );
+      const columns = ['user_id'];
+      const values = [userId];
+      const placeholders = ['$1'];
+      const addInsertValue = (column, value) => {
+        columns.push(column);
+        values.push(value);
+        placeholders.push(`$${values.length}`);
+      };
+
+      if (hasSmtpFields) {
+        if (hasOwn('smtp_host')) addInsertValue('smtp_host', smtp_host);
+        if (hasOwn('smtp_port')) addInsertValue('smtp_port', smtp_port);
+        if (hasOwn('smtp_user')) addInsertValue('smtp_user', smtp_user);
+        if (hasOwn('smtp_password') && smtp_password && smtp_password !== MASKED_SMTP_PASSWORD) {
+          addInsertValue('smtp_password', smtp_password);
+        }
+        if (hasOwn('smtp_from')) addInsertValue('smtp_from', smtp_from);
+      }
+
+      addInsertValue('notify_on_add', notify_on_add ? 1 : 0);
+      addInsertValue('notify_on_update', notify_on_update ? 1 : 0);
+      addInsertValue('notify_on_delete', notify_on_delete ? 1 : 0);
+
+      await db.prepare(`INSERT INTO settings (${columns.join(', ')}) VALUES (${placeholders.join(', ')})`).run(...values);
     }
 
     res.json({ message: 'Settings saved successfully' });

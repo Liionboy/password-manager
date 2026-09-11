@@ -2,7 +2,7 @@
 
 A secure, self-hosted password manager application built with React, Node.js, and PostgreSQL - all containerized with Docker.
 
-![Version](https://img.shields.io/badge/version-2.8.1-blue)
+![Version](https://img.shields.io/badge/version-2.8.2-blue)
 ![Docker](https://img.shields.io/badge/Docker-ready-blueviolet)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -148,15 +148,8 @@ derive the per-user AES-GCM key; never expose the application over plain HTTP.
    - `SMTP_USER` - Your email address
    - `SMTP_PASS` - Your SMTP/App Password
    - `SMTP_FROM` - e.g., `Password Manager <your@email.com>`
-3. Alternatively, configure your SMTP server in the Settings page:
-   - **SMTP Host** - e.g., `smtp.gmail.com`
-   - **SMTP Port** - e.g., `587` (TLS) or `465` (SSL)
-   - **SMTP Username** - Your email address
-   - **SMTP Password** - For Gmail, use an [App Password](https://support.google.com/accounts/answer/185833)
-   - **From Email** - e.g., `Password Manager <your@email.com>`
-4. Enable notifications for add/update/delete events
-5. Click **Send Test Email** to verify settings. The test reuses the saved
-   server-side password when the password field is masked.
+3. Enable notifications for add/update/delete events in the Settings page.
+4. Click **Send Test Email** in Settings to verify the server-side configuration.
 
 ### Teams & Collaboration
 
@@ -171,7 +164,7 @@ derive the per-user AES-GCM key; never expose the application over plain HTTP.
 The first registered user becomes the admin. Admin capabilities:
 - **Users** page - Create, edit (change role), reset password, and delete users
 - **Teams** page - Create teams, add/remove members, delete teams
-- **Settings** page - Configure SMTP email notifications
+- **Settings** page - Manage email notification preferences and test server-side SMTP
 - **Team folders** - Assign folders to teams for team visibility
 
 ### Two-Factor Authentication (2FA)
