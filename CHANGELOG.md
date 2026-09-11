@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.1] - 2026-09-11
+
+### Fixed
+
+- Keep SMTP credentials from `.env` separate from notification preferences.
+- Ignore incomplete duplicate global settings rows when selecting SMTP or notification configuration.
+- Stop creating a new empty global settings row on every database initialization.
+- Add regression coverage for environment SMTP and global notification preference selection.
+
 ## [2.8.0] - 2026-09-11
 
 ### Added

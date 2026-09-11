@@ -1,11 +1,12 @@
 {
   "name": "password-manager-backend",
-  "version": "2.8.0",
+  "version": "2.8.1",
   "description": "Backend for Password Manager",
   "main": "src/index.js",
   "scripts": {
     "start": "node src/index.js",
-    "dev": "node src/index.js"
+    "dev": "node src/index.js",
+    "test": "node --test test/*.test.js"
   },
   "dependencies": {
     "argon2": "^0.44.0",

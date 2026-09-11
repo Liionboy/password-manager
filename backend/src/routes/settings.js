@@ -27,18 +27,73 @@ const getEnvironmentSmtpSettings = () => {
   };
 };
 
+const getValidGlobalSmtpSettings = async (db) => db.prepare(`
+  SELECT * FROM settings
+  WHERE is_global = 1
+    AND NULLIF(BTRIM(smtp_host), '') IS NOT NULL
+    AND smtp_port IS NOT NULL
+    AND NULLIF(BTRIM(smtp_user), '') IS NOT NULL
+    AND NULLIF(smtp_password, '') IS NOT NULL
+    AND NULLIF(BTRIM(smtp_from), '') IS NOT NULL
+  ORDER BY id DESC
+  LIMIT 1
+`).get();
+
 const getDatabaseSmtpSettings = async (db, userId) => {
-  const personalSettings = await db.prepare('SELECT * FROM settings WHERE user_id = ?').get(userId);
+  const personalSettings = await db.prepare(`
+    SELECT * FROM settings
+    WHERE user_id = ?
+      AND NULLIF(BTRIM(smtp_host), '') IS NOT NULL
+      AND smtp_port IS NOT NULL
+      AND NULLIF(BTRIM(smtp_user), '') IS NOT NULL
+      AND NULLIF(smtp_password, '') IS NOT NULL
+      AND NULLIF(BTRIM(smtp_from), '') IS NOT NULL
+    ORDER BY id DESC
+    LIMIT 1
+  `).get(userId);
   if (personalSettings?.smtp_host && personalSettings.smtp_user && personalSettings.smtp_password) {
     return { ...personalSettings, smtp_source: 'database' };
   }
 
-  const globalSettings = await db.prepare('SELECT * FROM settings WHERE is_global = 1').get();
+  const globalSettings = await getValidGlobalSmtpSettings(db);
   if (globalSettings?.smtp_host && globalSettings.smtp_user && globalSettings.smtp_password) {
     return { ...globalSettings, smtp_source: 'database' };
   }
 
   return null;
+};
+
+const getNotificationSettings = async (db, userId) => {
+  const personalSettings = await db.prepare(`
+    SELECT * FROM settings
+    WHERE user_id = ?
+    ORDER BY id DESC
+    LIMIT 1
+  `).get(userId);
+  const environmentSettings = getEnvironmentSmtpSettings();
+
+  if (environmentSettings) {
+    const globalSettings = await getValidGlobalSmtpSettings(db);
+
+    // Environment variables own only SMTP transport credentials. Keep each
+    // user's preferences when no valid global configuration exists. A valid
+    // global configuration remains authoritative for the "use for all users"
+    // mode; incomplete duplicate rows never become the source of preferences.
+    const preferences = globalSettings || personalSettings || {};
+    return {
+      ...preferences,
+      ...environmentSettings,
+      is_global: Boolean(globalSettings)
+    };
+  }
+
+  if (personalSettings?.smtp_host && personalSettings.smtp_user && personalSettings.smtp_password) {
+    return { ...personalSettings, is_global: false, smtp_source: 'database' };
+  }
+
+  const globalSettings = await getValidGlobalSmtpSettings(db);
+
+  return globalSettings ? { ...globalSettings, is_global: true, smtp_source: 'database' } : null;
 };
 
 router.use(authenticateToken);
@@ -58,9 +113,15 @@ router.get('/', async (req, res) => {
     const environmentSettings = getEnvironmentSmtpSettings();
 
     if (environmentSettings) {
-      settings = { ...settings, ...environmentSettings };
+      const globalSettings = await getValidGlobalSmtpSettings(db);
+      settings = {
+        ...settings,
+        ...(globalSettings || {}),
+        ...environmentSettings,
+        is_global: Boolean(globalSettings)
+      };
     } else if (req.user.role === 'admin') {
-      const globalSettings = await db.prepare('SELECT * FROM settings WHERE is_global = 1').get();
+      const globalSettings = await getValidGlobalSmtpSettings(db);
       if (globalSettings) {
         settings = { ...settings, is_global: globalSettings.is_global };
         if (globalSettings.smtp_host && !settings.smtp_host) {
@@ -76,7 +137,7 @@ router.get('/', async (req, res) => {
         }
       }
     } else {
-      const globalSettings = await db.prepare('SELECT * FROM settings WHERE is_global = 1').get();
+      const globalSettings = await getValidGlobalSmtpSettings(db);
       if (globalSettings && globalSettings.smtp_host && !settings.smtp_host) {
         settings.smtp_host = globalSettings.smtp_host;
         settings.smtp_port = globalSettings.smtp_port;
@@ -248,27 +309,15 @@ const sendNotification = async (db, userId, subject, body, actionType) => {
   console.log('sendNotification called for user', userId, 'subject:', subject);
   try {
     console.log('Getting user and settings for userId:', userId);
-    let settings = await db.prepare('SELECT * FROM settings WHERE user_id = ?').get(userId);
+    const settings = await getNotificationSettings(db, userId);
     const user = await db.prepare('SELECT email FROM users WHERE id = ?').get(userId);
-    const environmentSettings = getEnvironmentSmtpSettings();
-    
-    let isGlobal = false;
-    if (environmentSettings) {
-      const globalSettings = await db.prepare('SELECT * FROM settings WHERE is_global = 1').get();
-      settings = { ...(globalSettings || settings || {}), ...environmentSettings };
-      isGlobal = Boolean(globalSettings);
-    } else if (!settings || !settings.smtp_host) {
-      console.log('No personal settings, checking global');
-      const globalSettings = await db.prepare('SELECT * FROM settings WHERE is_global = 1').get();
-      if (globalSettings && globalSettings.smtp_host) {
-        settings = globalSettings;
-        isGlobal = true;
-      } else {
-        console.log('No SMTP settings found for user', userId);
-        return;
-      }
+
+    if (!settings) {
+      console.log('No SMTP settings found for user', userId);
+      return;
     }
 
+    const isGlobal = Boolean(settings.is_global);
     const notifyOnAdd = isGlobal ? settings.notify_on_add : (settings.notify_on_add || (!settings.notify_on_add && !settings.notify_on_update && !settings.notify_on_delete));
     const notifyOnUpdate = isGlobal ? settings.notify_on_update : (settings.notify_on_update || (!settings.notify_on_add && !settings.notify_on_update && !settings.notify_on_delete));
     const notifyOnDelete = isGlobal ? settings.notify_on_delete : (settings.notify_on_delete || (!settings.notify_on_add && !settings.notify_on_update && !settings.notify_on_delete));
