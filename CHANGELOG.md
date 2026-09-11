@@ -5,11 +5,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.7.2] - 2026-09-11
+
+### Security
+
+- Publish the backend `nodemailer` 9.1.1 security update in new Docker images.
+
 ## [2.7.1] - 2026-09-02
 
 ### Security
 - Upgrade Alpine runtime packages to include the fix for CVE-2026-14456.
-- Upgrade `nodemailer` to 9.1.1 for the latest backend security fixes.
 
 ## [2.7.0] - 2026-08-21
 
