@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 - Upgrade Alpine runtime packages to include the fix for CVE-2026-14456.
+- Upgrade `nodemailer` to 9.1.1 for the latest backend security fixes.
 
 ## [2.7.0] - 2026-08-21
 
