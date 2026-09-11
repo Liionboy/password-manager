@@ -12,7 +12,7 @@ Pre-built images available on Docker Hub - no need to clone and build locally:
 
 ```bash
 # Quick start with Docker Hub images
-curl -O https://raw.githubusercontent.com/Liionboy/password-manager/main/docker-compose.hub.yml
+curl -O https://raw.githubusercontent.com/Liionboy/password-manager/master/docker-compose.hub.yml
 # Edit .env with your settings
 docker compose -f docker-compose.hub.yml up -d
 ```
