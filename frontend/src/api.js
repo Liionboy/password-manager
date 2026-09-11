@@ -114,7 +114,7 @@ export const teams = {
 export const settings = {
   get: () => api.get('/settings'),
   save: (data) => api.put('/settings', data),
-  testEmail: (data) => api.post('/settings/test-email', data)
+  testEmail: () => api.post('/settings/test-email')
 };
 
 export const emergency = {
