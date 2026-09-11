@@ -725,6 +725,87 @@ a:hover {
   backdrop-filter: blur(4px);
 }
 
+.confirm-dialog-overlay {
+  z-index: 5000;
+  padding: 20px;
+}
+
+.confirm-dialog {
+  width: min(460px, 100%);
+  padding: 28px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 16px;
+  background: color-mix(in srgb, var(--bg-card) 94%, transparent);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  box-shadow: var(--glow-cyan), 0 25px 50px -12px rgba(0, 0, 0, 0.65);
+  backdrop-filter: blur(14px);
+  animation: confirmDialogIn 160ms ease-out;
+}
+
+.confirm-dialog-icon {
+  width: 34px;
+  height: 34px;
+  display: grid;
+  place-items: center;
+  border: 1px solid rgba(248, 113, 113, 0.55);
+  border-radius: 50%;
+  background: rgba(248, 113, 113, 0.14);
+  color: #fca5a5;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.confirm-dialog-content h2 {
+  margin: 0 0 8px;
+}
+
+.confirm-dialog-content p {
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.confirm-dialog-actions {
+  grid-column: 1 / -1;
+  justify-content: flex-end;
+  margin-top: 4px;
+}
+
+.smtp-managed-banner {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 20px;
+  padding: 12px 14px;
+  border: 1px solid color-mix(in srgb, var(--accent-cyan) 55%, var(--border-color));
+  border-radius: 10px;
+  background: color-mix(in srgb, var(--accent-cyan) 10%, transparent);
+  color: var(--text-secondary);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.smtp-managed-banner strong {
+  color: var(--accent-cyan);
+}
+
+input:disabled {
+  cursor: not-allowed;
+  opacity: 0.75;
+}
+
+@keyframes confirmDialogIn {
+  from {
+    transform: translateY(8px) scale(0.98);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
 @keyframes slideIn {
   from {
     transform: translateX(100%);

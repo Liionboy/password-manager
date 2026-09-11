@@ -3,6 +3,43 @@ const { authenticateToken } = require('../middleware/auth');
 const nodemailer = require('nodemailer');
 
 const router = express.Router();
+const MASKED_SMTP_PASSWORD = '***hidden***';
+
+const getEnvironmentSmtpSettings = () => {
+  const host = String(process.env.SMTP_HOST || '').trim();
+  const port = Number.parseInt(process.env.SMTP_PORT || '587', 10);
+  const user = String(process.env.SMTP_USER || '').trim();
+  const password = String(process.env.SMTP_PASS || '');
+  const from = String(process.env.SMTP_FROM || user).trim();
+
+  if (!host || !user || !password || !from || !Number.isInteger(port) || port < 1 || port > 65535) {
+    return null;
+  }
+
+  return {
+    smtp_host: host,
+    smtp_port: port,
+    smtp_user: user,
+    smtp_password: password,
+    smtp_from: from,
+    smtp_source: 'environment',
+    is_global: true
+  };
+};
+
+const getDatabaseSmtpSettings = async (db, userId) => {
+  const personalSettings = await db.prepare('SELECT * FROM settings WHERE user_id = ?').get(userId);
+  if (personalSettings?.smtp_host && personalSettings.smtp_user && personalSettings.smtp_password) {
+    return { ...personalSettings, smtp_source: 'database' };
+  }
+
+  const globalSettings = await db.prepare('SELECT * FROM settings WHERE is_global = 1').get();
+  if (globalSettings?.smtp_host && globalSettings.smtp_user && globalSettings.smtp_password) {
+    return { ...globalSettings, smtp_source: 'database' };
+  }
+
+  return null;
+};
 
 router.use(authenticateToken);
 
@@ -18,7 +55,11 @@ router.get('/', async (req, res) => {
       settings = await db.prepare('SELECT * FROM settings WHERE user_id = ?').get(userId);
     }
 
-    if (req.user.role === 'admin') {
+    const environmentSettings = getEnvironmentSmtpSettings();
+
+    if (environmentSettings) {
+      settings = { ...settings, ...environmentSettings };
+    } else if (req.user.role === 'admin') {
       const globalSettings = await db.prepare('SELECT * FROM settings WHERE is_global = 1').get();
       if (globalSettings) {
         settings = { ...settings, is_global: globalSettings.is_global };
@@ -26,6 +67,7 @@ router.get('/', async (req, res) => {
           settings.smtp_host = globalSettings.smtp_host;
           settings.smtp_port = globalSettings.smtp_port;
           settings.smtp_user = globalSettings.smtp_user;
+          settings.smtp_password = globalSettings.smtp_password;
           settings.smtp_from = globalSettings.smtp_from;
           settings.notify_on_add = globalSettings.notify_on_add;
           settings.notify_on_update = globalSettings.notify_on_update;
@@ -39,6 +81,7 @@ router.get('/', async (req, res) => {
         settings.smtp_host = globalSettings.smtp_host;
         settings.smtp_port = globalSettings.smtp_port;
         settings.smtp_user = globalSettings.smtp_user;
+        settings.smtp_password = globalSettings.smtp_password;
         settings.smtp_from = globalSettings.smtp_from;
         settings.notify_on_add = globalSettings.notify_on_add;
         settings.notify_on_update = globalSettings.notify_on_update;
@@ -48,7 +91,7 @@ router.get('/', async (req, res) => {
     }
 
     if (settings.smtp_password) {
-      settings.smtp_password = '***hidden***';
+      settings.smtp_password = MASKED_SMTP_PASSWORD;
     }
 
     res.json(settings);
@@ -126,28 +169,38 @@ router.post('/test-email', async (req, res) => {
     const db = req.db;
     const userId = req.user.id;
     const { smtp_host, smtp_port, smtp_user, smtp_password, smtp_from } = req.body;
+    const environmentSettings = getEnvironmentSmtpSettings();
+    const storedSettings = await getDatabaseSmtpSettings(db, userId);
+    const savedSettings = environmentSettings || storedSettings || {};
+    const password = smtp_password && smtp_password !== MASKED_SMTP_PASSWORD
+      ? smtp_password
+      : savedSettings.smtp_password;
+    const host = environmentSettings?.smtp_host || smtp_host || savedSettings.smtp_host;
+    const port = environmentSettings?.smtp_port || parseInt(smtp_port || savedSettings.smtp_port, 10);
+    const user = environmentSettings?.smtp_user || smtp_user || savedSettings.smtp_user;
+    const from = environmentSettings?.smtp_from || smtp_from || savedSettings.smtp_from;
 
-    if (!smtp_host || !smtp_port || !smtp_user || !smtp_password || !smtp_from) {
+    if (!host || !port || !user || !password || !from) {
       return res.status(400).json({ error: 'All SMTP fields are required for testing' });
     }
 
     const transporter = nodemailer.createTransport({
-      host: smtp_host,
-      port: parseInt(smtp_port),
-      secure: parseInt(smtp_port) === 465,
+      host,
+      port,
+      secure: port === 465,
       tls: {
         minVersion: 'TLSv1.2'
       },
       connectionTimeout: 15000,
       auth: {
-        user: smtp_user,
-        pass: smtp_password
+        user,
+        pass: password
       }
     });
 
     await transporter.sendMail({
-      from: smtp_from,
-      to: smtp_user,
+      from,
+      to: user,
       subject: 'Password Manager - Test Email',
       html: `
         <!DOCTYPE html>
@@ -197,9 +250,14 @@ const sendNotification = async (db, userId, subject, body, actionType) => {
     console.log('Getting user and settings for userId:', userId);
     let settings = await db.prepare('SELECT * FROM settings WHERE user_id = ?').get(userId);
     const user = await db.prepare('SELECT email FROM users WHERE id = ?').get(userId);
+    const environmentSettings = getEnvironmentSmtpSettings();
     
     let isGlobal = false;
-    if (!settings || !settings.smtp_host) {
+    if (environmentSettings) {
+      const globalSettings = await db.prepare('SELECT * FROM settings WHERE is_global = 1').get();
+      settings = { ...(globalSettings || settings || {}), ...environmentSettings };
+      isGlobal = Boolean(globalSettings);
+    } else if (!settings || !settings.smtp_host) {
       console.log('No personal settings, checking global');
       const globalSettings = await db.prepare('SELECT * FROM settings WHERE is_global = 1').get();
       if (globalSettings && globalSettings.smtp_host) {

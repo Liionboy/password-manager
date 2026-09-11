@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { teams, auth } from '../api';
+import { useConfirm } from '../components/ConfirmDialog';
 
 function TeamManagement({ token }) {
   const navigate = useNavigate();
@@ -16,6 +17,7 @@ function TeamManagement({ token }) {
   const [showAddMember, setShowAddMember] = useState(false);
   const [newMemberUserId, setNewMemberUserId] = useState('');
   const [newMemberRole, setNewMemberRole] = useState('member');
+  const confirm = useConfirm();
 
   useEffect(() => {
     loadData();
@@ -56,13 +58,17 @@ function TeamManagement({ token }) {
   };
 
   const handleRemoveMember = async (teamId, userId) => {
-    if (!window.confirm('Remove this user from team?')) return;
+    if (!(await confirm({
+      title: 'Remove team member?',
+      message: 'This user will lose access to the team.',
+      confirmLabel: 'Remove member'
+    }))) return;
     
     try {
       await teams.removeMember(teamId, userId);
       loadData();
     } catch (err) {
-      alert(err.response?.data?.error || 'Error removing member');
+      setError(err.response?.data?.error || 'Error removing member');
     }
   };
 
@@ -73,7 +79,7 @@ function TeamManagement({ token }) {
       setSelectedTeam(teamId);
       setShowAddMember(false);
     } catch (err) {
-      alert(err.response?.data?.error || 'Error loading members');
+      setError(err.response?.data?.error || 'Error loading members');
     }
   };
 
@@ -95,7 +101,11 @@ function TeamManagement({ token }) {
   };
 
   const handleDeleteTeam = async (teamId) => {
-    if (!window.confirm('Are you sure you want to delete this team? This action cannot be undone.')) return;
+    if (!(await confirm({
+      title: 'Delete team?',
+      message: 'This team and its membership will be permanently removed.',
+      confirmLabel: 'Delete team'
+    }))) return;
     try {
       await teams.delete(teamId);
       setSuccess('Team deleted successfully!');

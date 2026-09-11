@@ -2,7 +2,7 @@
 
 A secure, self-hosted password manager application built with React, Node.js, and PostgreSQL - all containerized with Docker.
 
-![Version](https://img.shields.io/badge/version-2.7.2-blue)
+![Version](https://img.shields.io/badge/version-2.8.0-blue)
 ![Docker](https://img.shields.io/badge/Docker-ready-blueviolet)
 ![License](https://img.shields.io/badge/license-MIT-green)
 
@@ -141,14 +141,22 @@ derive the per-user AES-GCM key; never expose the application over plain HTTP.
 ### Email Notifications
 
 1. Click **Settings** in the header (admin only)
-2. Configure your SMTP server:
+2. For production, configure SMTP in the server `.env` file so the password is
+   never entered or stored in the browser:
+   - `SMTP_HOST` - e.g., `smtp.gmail.com`
+   - `SMTP_PORT` - e.g., `587` (TLS) or `465` (SSL)
+   - `SMTP_USER` - Your email address
+   - `SMTP_PASS` - Your SMTP/App Password
+   - `SMTP_FROM` - e.g., `Password Manager <your@email.com>`
+3. Alternatively, configure your SMTP server in the Settings page:
    - **SMTP Host** - e.g., `smtp.gmail.com`
    - **SMTP Port** - e.g., `587` (TLS) or `465` (SSL)
    - **SMTP Username** - Your email address
    - **SMTP Password** - For Gmail, use an [App Password](https://support.google.com/accounts/answer/185833)
    - **From Email** - e.g., `Password Manager <your@email.com>`
-3. Enable notifications for add/update/delete events
-4. Click **Send Test Email** to verify settings
+4. Enable notifications for add/update/delete events
+5. Click **Send Test Email** to verify settings. The test reuses the saved
+   server-side password when the password field is masked.
 
 ### Teams & Collaboration
 
@@ -246,6 +254,11 @@ The following environment variables can be configured in `docker-compose.yml`:
 | `DB_PASSWORD` | PostgreSQL password | `postgres` |
 | `DB_NAME` | PostgreSQL database name | `passwordmanager` |
 | `BASE_URL` | Base URL for password reset links | `http://localhost:5173` |
+| `SMTP_HOST` | SMTP server hostname; takes precedence over database SMTP settings | unset |
+| `SMTP_PORT` | SMTP port (`587` for TLS or `465` for SSL) | `587` |
+| `SMTP_USER` | SMTP login username/email | unset |
+| `SMTP_PASS` | SMTP password or provider app password | unset |
+| `SMTP_FROM` | Sender address/name | `SMTP_USER` |
 
 > **Security Note:** Generate unique random `JWT_SECRET`, `REFRESH_SECRET`, and
 > `ENCRYPTION_KEY` values in production. Keep `ENCRYPTION_KEY` stable so old

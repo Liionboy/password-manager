@@ -10,6 +10,7 @@ function Settings({ token }) {
     smtp_user: '',
     smtp_password: '',
     smtp_from: '',
+    smtp_source: 'database',
     notify_on_add: false,
     notify_on_update: false,
     notify_on_delete: false,
@@ -34,6 +35,7 @@ function Settings({ token }) {
         smtp_user: data.smtp_user || '',
         smtp_password: data.smtp_password || '',
         smtp_from: data.smtp_from || '',
+        smtp_source: data.smtp_source || 'database',
         notify_on_add: Boolean(data.notify_on_add),
         notify_on_update: Boolean(data.notify_on_update),
         notify_on_delete: Boolean(data.notify_on_delete),
@@ -66,7 +68,8 @@ function Settings({ token }) {
   };
 
   const handleTestEmail = async () => {
-    if (!formData.smtp_host || !formData.smtp_user || !formData.smtp_password || !formData.smtp_from) {
+    const hasConfiguredPassword = formData.smtp_source === 'environment' || formData.smtp_password;
+    if (!formData.smtp_host || !formData.smtp_user || !hasConfiguredPassword || !formData.smtp_from) {
       setError('Please fill in all SMTP fields before testing');
       return;
     }
@@ -80,7 +83,9 @@ function Settings({ token }) {
         smtp_host: formData.smtp_host,
         smtp_port: formData.smtp_port,
         smtp_user: formData.smtp_user,
-        smtp_password: formData.smtp_password,
+        ...(formData.smtp_password !== '***hidden***' && formData.smtp_password
+          ? { smtp_password: formData.smtp_password }
+          : {}),
         smtp_from: formData.smtp_from
       });
       setMessage('Test email sent! Check your inbox.');
@@ -101,6 +106,12 @@ function Settings({ token }) {
 
         <form onSubmit={handleSubmit}>
           <h2>SMTP Email Settings</h2>
+          {formData.smtp_source === 'environment' && (
+            <div className="smtp-managed-banner" role="status">
+              <strong>SMTP managed by environment</strong>
+              <span>These values come from SMTP_HOST, SMTP_PORT, SMTP_USER, SMTP_PASS, and SMTP_FROM in the server .env file.</span>
+            </div>
+          )}
           <p style={{ color: '#94a3b8', marginBottom: '20px', fontSize: '14px' }}>
             Configure your SMTP server to receive email notifications when passwords or cards are added, updated, or deleted.
           </p>
@@ -113,6 +124,7 @@ function Settings({ token }) {
               value={formData.smtp_host}
               onChange={handleChange}
               placeholder="smtp.gmail.com"
+              disabled={formData.smtp_source === 'environment'}
             />
           </div>
 
@@ -125,6 +137,7 @@ function Settings({ token }) {
               onChange={handleChange}
               placeholder="587"
               style={{ width: '100px' }}
+              disabled={formData.smtp_source === 'environment'}
             />
           </div>
 
@@ -136,6 +149,7 @@ function Settings({ token }) {
               value={formData.smtp_user}
               onChange={handleChange}
               placeholder="your@email.com"
+              disabled={formData.smtp_source === 'environment'}
             />
           </div>
 
@@ -144,9 +158,10 @@ function Settings({ token }) {
             <input
               type="password"
               name="smtp_password"
-              value={formData.smtp_password}
+              value={formData.smtp_source === 'environment' ? '' : formData.smtp_password}
               onChange={handleChange}
-              placeholder="Your app password"
+              placeholder={formData.smtp_source === 'environment' ? 'Managed by SMTP_PASS in .env' : 'Your app password'}
+              disabled={formData.smtp_source === 'environment'}
             />
             <small style={{ color: '#64748b', fontSize: '12px' }}>For Gmail, use an App Password (16 characters)</small>
           </div>
@@ -159,6 +174,7 @@ function Settings({ token }) {
               value={formData.smtp_from}
               onChange={handleChange}
               placeholder="Password Manager <your@email.com>"
+              disabled={formData.smtp_source === 'environment'}
             />
           </div>
 
