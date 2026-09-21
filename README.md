@@ -389,7 +389,7 @@ Backup/restore is implemented for the PostgreSQL Docker volume (`password-manage
 ### 1) Create encrypted backup
 
 ```bash
-cd /home/adrian/.openclaw/workspace/password-manager
+cd password-manager
 BACKUP_PASSPHRASE='set-a-strong-passphrase' ./scripts/backup-encrypted.sh
 ```
 
@@ -398,14 +398,14 @@ Output is stored in `./backups/` (ignored by git).
 ### 2) Restore encrypted backup
 
 ```bash
-cd /home/adrian/.openclaw/workspace/password-manager
+cd password-manager
 BACKUP_PASSPHRASE='set-a-strong-passphrase' ./scripts/restore-encrypted.sh ./backups/<backup-file>.enc
 ```
 
 ### 3) Test restore end-to-end
 
 ```bash
-cd /home/adrian/.openclaw/workspace/password-manager
+cd password-manager
 BACKUP_PASSPHRASE='set-a-strong-passphrase' ./scripts/test-restore.sh
 ```
 
