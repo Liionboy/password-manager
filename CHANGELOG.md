@@ -5,6 +5,25 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.5] - 2026-10-26
+
+### Security
+
+- Update the Express body-parser dependency to 1.20.9 to fix the compressed
+  request denial of service (CVE-2026-111181 / GHSA-27r3-jxmh-p828).
+- Update Nodemailer to 10.2.1 to fix recipient address parsing vulnerabilities
+  GHSA-8c8m-p3m8-cjg8, GHSA-m943-m63m-w62w, and GHSA-85x2-q946-cp5h.
+- Update Vite to 8.3.5 and follow-redirects to 1.16.2 to address the additional
+  high-severity findings detected during release verification.
+- Restore the frontend audit gate to HIGH, matching the backend, and remove
+  the obsolete React Router exception.
+
+### Tests
+
+- Add compressed request regression tests, including trailing gzip bytes and
+  completion of deflate requests after early decompression.
+- Run backend unit tests in Security CI without relaxing vulnerability gates.
+
 ## [2.8.2] - 2026-09-11
 
 ### Changed

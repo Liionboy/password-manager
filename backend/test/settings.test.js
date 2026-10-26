@@ -6,6 +6,20 @@ process.env.JWT_SECRET ||= 'settings-test-jwt-secret';
 const { sendNotification } = require('../src/routes/settings');
 
 const originalCreateTransport = nodemailer.createTransport;
+
+test('Nodemailer generates notifications with the expected recipients without a network connection', async () => {
+  const transport = originalCreateTransport({ streamTransport: true, buffer: true, newline: 'unix' });
+  const message = await transport.sendMail({
+    from: 'Password Manager <mailer@example.test>',
+    to: 'Vault User <user@example.test>',
+    subject: 'Password Manager notification',
+    text: 'A vault item was updated.'
+  });
+  assert.deepEqual(message.envelope, { from: 'mailer@example.test', to: ['user@example.test'] });
+  assert.match(message.message.toString(), /Subject: Password Manager notification/);
+  assert.match(message.message.toString(), /A vault item was updated./);
+});
+
 const originalEnvironment = {
   SMTP_HOST: process.env.SMTP_HOST,
   SMTP_PORT: process.env.SMTP_PORT,
