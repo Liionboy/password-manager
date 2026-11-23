@@ -5,6 +5,15 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.8.6] - 2026-11-23
+
+### Security
+
+- Upgrade the frontend runtime to NGINX 1.30.7-r0 or newer to fix six high
+  and critical findings reported by the container scan.
+- Remove unused NGINX modules that pinned the runtime to an older release.
+  Keep the existing unprivileged user, listener, and API proxy configuration.
+
 ## [2.8.5] - 2026-10-26
 
 ### Security
