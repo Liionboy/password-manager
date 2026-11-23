@@ -14,7 +14,11 @@ FROM nginxinc/nginx-unprivileged:stable-alpine
 
 USER root
 
-RUN apk upgrade --no-cache
+# The base image pins NGINX and optional modules to the same release.
+# Drop the unused modules so Alpine can install the patched NGINX package.
+RUN apk del --no-cache nginx-module-geoip nginx-module-image-filter nginx-module-njs nginx-module-xslt \
+  && apk add --no-cache 'nginx>=1.30.7-r0' \
+  && apk upgrade --no-cache
 
 USER 101
 
